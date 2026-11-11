@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="hi" id="html-root">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>किराना दुकान AI - Smart POS & Stock Manager</title>
+  <title id="page-title">किराना दुकान AI - Smart POS & Stock Manager</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -216,7 +216,7 @@
             <div id="change-calculator-box" class="bg-[#FEF3C7]/60 p-2.5 rounded-lg border border-[#FDE68A] space-y-2">
               <div class="flex justify-between items-center text-xs">
                 <span class="font-bold text-[#92400E]" id="lbl-amount-received" data-i18n="lbl_tendered">ग्राहक ने दिया (Tendered ₹):</span>
-                <input type="number" id="inp-amount-received" placeholder="उदा. 500" oninput="recalculateChange()" class="w-28 text-right p-1.5 rounded-lg border border-[#F59E0B] text-sm font-bold bg-white focus:outline-none">
+                <input type="number" id="inp-amount-received" data-i18n-ph="ph_tendered" placeholder="उदा. 500" oninput="recalculateChange()" class="w-28 text-right p-1.5 rounded-lg border border-[#F59E0B] text-sm font-bold bg-white focus:outline-none">
               </div>
               <div id="change-display-row" class="flex justify-between items-center text-xs pt-1.5 border-t border-[#FDE68A]">
                 <span class="text-[#78716C]" data-i18n="lbl_change">🔄 छुट्टे वापस करें (Change):</span>
@@ -253,7 +253,7 @@
           <div class="space-y-3 text-sm">
             <div>
               <label class="block text-xs font-bold text-[#1C1917] mb-1" data-i18n="lbl_prod_name">सामान का नाम (Product Name)</label>
-              <input type="text" id="purch-name" oninput="checkProductMatch(this.value)" placeholder="उदा. Fortune Oil 1L / चीनी" class="w-full p-2.5 rounded-lg border border-[#E7E5E4] text-sm focus:outline-none focus:border-[#15803D]">
+              <input type="text" id="purch-name" oninput="checkProductMatch(this.value)" data-i18n-ph="ph_purch_name" placeholder="उदा. Fortune Oil 1L / चीनी" class="w-full p-2.5 rounded-lg border border-[#E7E5E4] text-sm focus:outline-none focus:border-[#15803D]">
               <div id="match-hint" class="text-xs mt-1 font-semibold hidden"></div>
             </div>
 
@@ -265,11 +265,11 @@
               <div>
                 <label class="block text-xs font-bold text-[#1C1917] mb-1" data-i18n="lbl_unit">इकाई (Unit)</label>
                 <select id="purch-unit" class="w-full p-2.5 rounded-lg border border-[#E7E5E4] text-sm bg-white focus:outline-none focus:border-[#15803D]">
-                  <option value="packet">packet (पैकेट)</option>
-                  <option value="kg">kg (किलो)</option>
-                  <option value="liter">liter (लीटर)</option>
-                  <option value="piece">piece (पीस)</option>
-                  <option value="box">box (पेटी/बॉक्स)</option>
+                  <option value="packet" data-i18n="opt_packet">packet (पैकेट)</option>
+                  <option value="kg" data-i18n="opt_kg">kg (किलो)</option>
+                  <option value="liter" data-i18n="opt_liter">liter (लीटर)</option>
+                  <option value="piece" data-i18n="opt_piece">piece (पीस)</option>
+                  <option value="box" data-i18n="opt_box">box (पेटी/बॉक्स)</option>
                 </select>
               </div>
             </div>
@@ -287,7 +287,7 @@
 
             <div>
               <label class="block text-xs font-bold text-[#B45309] mb-1" data-i18n="lbl_alert_limit">⚠️ अलर्ट कब मिले? (Low Stock Alert Limit)</label>
-              <input type="number" id="purch-alert-limit" value="5" min="0" placeholder="e.g. 5 या 20" class="w-full p-2.5 rounded-lg border border-[#FDE68A] text-sm font-bold text-[#92400E] bg-[#FFFBEB] focus:outline-none">
+              <input type="number" id="purch-alert-limit" value="5" min="0" data-i18n-ph="ph_alert_limit" placeholder="e.g. 5 या 20" class="w-full p-2.5 rounded-lg border border-[#FDE68A] text-sm font-bold text-[#92400E] bg-[#FFFBEB] focus:outline-none">
               <span class="text-[11px] text-[#78716C] block mt-0.5" data-i18n="alert_limit_help">स्टॉक इससे कम होने पर शाम की री-ऑर्डर लिस्ट में अलर्ट आएगा।</span>
             </div>
 
@@ -447,7 +447,7 @@
       <div class="space-y-3 text-xs">
         <div>
           <label class="block font-bold text-[#1C1917] mb-1" data-i18n="lbl_cust_name_req">ग्राहक का नाम *</label>
-          <input type="text" id="new-cust-name" placeholder="उदा. रमेश कुमार" class="w-full p-2.5 rounded-lg border border-[#E7E5E4] focus:outline-none focus:border-[#15803D]">
+          <input type="text" id="new-cust-name" data-i18n-ph="ph_new_cust_name" placeholder="उदा. रमेश कुमार" class="w-full p-2.5 rounded-lg border border-[#E7E5E4] focus:outline-none focus:border-[#15803D]">
         </div>
         <div>
           <label class="block font-bold text-[#1C1917] mb-1" data-i18n="lbl_cust_mobile_opt">मोबाइल नंबर (वैकल्पिक)</label>
@@ -483,8 +483,8 @@
         <div>
           <label class="block font-bold text-[#1C1917] mb-1" data-i18n="payment_mode_title">भुगतान का माध्यम</label>
           <select id="settle-mode" class="w-full p-2.5 rounded-lg border border-[#E7E5E4] bg-white text-xs focus:outline-none focus:border-[#15803D]">
-            <option value="CASH">💵 Cash (नकद)</option>
-            <option value="UPI">📱 UPI (ऑनलाइन)</option>
+            <option value="CASH" data-i18n="opt_settle_cash">💵 Cash (नकद)</option>
+            <option value="UPI" data-i18n="opt_settle_upi">📱 UPI (ऑनलाइन)</option>
           </select>
         </div>
       </div>
@@ -649,9 +649,10 @@
 
   <!-- JAVASCRIPT APPLICATION LOGIC & I18N -->
   <script>
-    // 🌐 LANGUAGE DICTIONARY (Hindi & English)
+    // 🌐 COMPLETE BILINGUAL LANGUAGE DICTIONARY (Hindi & English)
     const i18n = {
       hi: {
+        page_title: "किराना दुकान AI - Smart POS & Stock Manager",
         app_title: "किराना दुकान AI",
         app_badge: "Smart POS",
         app_subtitle: "Fast Billing • Stock In/Out • Udhaar Khata • Daily Closing",
@@ -680,6 +681,7 @@
         lbl_tendered: "ग्राहक ने दिया (Tendered ₹):",
         lbl_change: "🔄 छुट्टे वापस करें (Change):",
         lbl_due: "📒 बकाया उधारी (Due):",
+        lbl_paid_now: "अभी जमा किया (Paid Now ₹):",
         btn_confirm: "बिल पक्का करें (Confirm & Print)",
         stockin_title: "नया माल जोड़ें (Stock IN Entry)",
         stockin_sub: "सप्लायर पर्चे से सामान दर्ज करें या नया प्रॉडक्ट बनाएं।",
@@ -759,9 +761,51 @@
         today_no_sales: "आज कोई सामान नहीं बिका",
         all_stock_ok: "✅ सब ठीक है! कोई सामान खत्म नहीं है।",
         item_out_suffix: " (खत्म हो गया)",
-        item_low_suffix: " (कम बचा है)"
+        item_low_suffix: " (कम बचा है)",
+        // New Gap-Fix Keys
+        ph_tendered: "उदा. 500",
+        ph_purch_name: "उदा. Fortune Oil 1L / चीनी",
+        ph_alert_limit: "उदा. 5 या 20",
+        ph_new_cust_name: "उदा. रमेश कुमार",
+        opt_packet: "packet (पैकेट)",
+        opt_kg: "kg (किलो)",
+        opt_liter: "liter (लीटर)",
+        opt_piece: "piece (पीस)",
+        opt_box: "box (पेटी/बॉक्स)",
+        opt_settle_cash: "💵 Cash (नकद)",
+        opt_settle_upi: "📱 UPI (ऑनलाइन)",
+        cart_count_suffix: "सामान",
+        walkin_receipt: "Walk-in (नकद)",
+        mobile_label: "मोबाइल",
+        mobile_not_avail: "उपलब्ध नहीं",
+        no_customers: "कोई ग्राहक नहीं मिला",
+        no_credit_records: "इस ग्राहक का कोई पिछला उधारी रिकॉर्ड नहीं है।",
+        bills_suffix: "बिल",
+        stock_label: "स्टॉक",
+        hint_already_exists: "🟢 पहले से मौजूद:",
+        hint_stock_cur: "वर्तमान स्टॉक:",
+        hint_new_product: "🟡 नया सामान: नया प्रॉडक्ट बनाया जाएगा",
+        alert_out_of_stock: "खत्म (Out of stock) है!",
+        alert_stock_limit_prefix: "दुकान में सिर्फ",
+        alert_stock_limit_suffix: "ही उपलब्ध है!",
+        alert_enter_name: "कृपया ग्राहक का नाम दर्ज करें!",
+        alert_cart_empty: "कृपया कार्ट में कम से कम एक सामान जोड़ें!",
+        alert_udhaar_walkin: "⚠️ उधार या Partial बिल के लिए ग्राहक का चयन करना अनिवार्य है! Quick Walk-in को उधार नहीं दिया जा सकता।",
+        alert_valid_stockin: "कृपया नाम, मात्रा और खरीद रेट सही दर्ज करें!",
+        alert_valid_number: "कृपया 0 या उससे बड़ी मान्य संख्या दर्ज करें!",
+        alert_enter_valid_amount: "कृपया सही राशि दर्ज करें!",
+        alert_deposit_success: "जमा हो गए! नया बकाया: ₹",
+        confirm_add_customer: "ग्राहक नहीं मिला। क्या नया ग्राहक जोड़ना है?",
+        prompt_alert_limit_part1: "'",
+        prompt_alert_limit_part2: "' के लिए नई अलर्ट लिमिट (Re-order Threshold) दर्ज करें:\n(जब स्टॉक इस संख्या से कम होगा, तब शाम की रिपोर्ट में अलर्ट आएगा)",
+        error_prefix: "त्रुटि: ",
+        mode_cash_lbl: "CASH (नकद)",
+        mode_upi_lbl: "UPI (ऑनलाइन)",
+        mode_udhaar_lbl: "उधार (Credit)",
+        mode_partial_lbl: "Partial (किस्त)"
       },
       en: {
+        page_title: "Kirana Dukan AI - Smart POS & Stock Manager",
         app_title: "Kirana Dukan AI",
         app_badge: "Smart POS",
         app_subtitle: "Fast Billing • Stock In/Out • Credit Ledger • Daily Closing",
@@ -790,6 +834,7 @@
         lbl_tendered: "Amount Received (Tendered ₹):",
         lbl_change: "🔄 Change to Return:",
         lbl_due: "📒 Credit Balance (Due):",
+        lbl_paid_now: "Paid Now (₹):",
         btn_confirm: "Confirm & Print Bill",
         stockin_title: "Add Stock (Stock IN Entry)",
         stockin_sub: "Enter wholesaler slip items or add new product.",
@@ -869,23 +914,72 @@
         today_no_sales: "No items sold today",
         all_stock_ok: "✅ All good! No items out of stock.",
         item_out_suffix: " (Out of Stock)",
-        item_low_suffix: " (Low Stock)"
+        item_low_suffix: " (Low Stock)",
+        // New Gap-Fix Keys
+        ph_tendered: "e.g. 500",
+        ph_purch_name: "e.g. Fortune Oil 1L / Sugar",
+        ph_alert_limit: "e.g. 5 or 20",
+        ph_new_cust_name: "e.g. Ramesh Kumar",
+        opt_packet: "packet",
+        opt_kg: "kg",
+        opt_liter: "liter",
+        opt_piece: "piece",
+        opt_box: "box",
+        opt_settle_cash: "💵 Cash",
+        opt_settle_upi: "📱 UPI (Online)",
+        cart_count_suffix: "items",
+        walkin_receipt: "Walk-in (Cash)",
+        mobile_label: "Mobile",
+        mobile_not_avail: "Not available",
+        no_customers: "No customers found",
+        no_credit_records: "No credit records found for this customer.",
+        bills_suffix: "bills",
+        stock_label: "Stock",
+        hint_already_exists: "🟢 Already exists:",
+        hint_stock_cur: "Current Stock:",
+        hint_new_product: "🟡 New Product: Will create new item",
+        alert_out_of_stock: "is out of stock!",
+        alert_stock_limit_prefix: "Only",
+        alert_stock_limit_suffix: "available in store!",
+        alert_enter_name: "Please enter customer name!",
+        alert_cart_empty: "Please add at least one item to cart!",
+        alert_udhaar_walkin: "⚠️ Please select a customer for Credit/Partial bill! Quick Walk-in cannot take credit.",
+        alert_valid_stockin: "Please enter valid name, quantity, and cost price!",
+        alert_valid_number: "Please enter a valid number >= 0!",
+        alert_enter_valid_amount: "Please enter a valid amount!",
+        alert_deposit_success: "deposited! New due: ₹",
+        confirm_add_customer: "Customer not found. Add new customer?",
+        prompt_alert_limit_part1: "Enter new low-stock alert threshold for '",
+        prompt_alert_limit_part2: "':\n(When stock falls below this, it appears on the re-order list)",
+        error_prefix: "Error: ",
+        mode_cash_lbl: "CASH",
+        mode_upi_lbl: "UPI",
+        mode_udhaar_lbl: "Credit (Udhaar)",
+        mode_partial_lbl: "Partial"
       }
     };
 
     let currentLang = localStorage.getItem('dukan_lang') || 'hi';
+    let currentActiveTab = 'billing';
 
     function applyLanguage(lang) {
       currentLang = lang;
       localStorage.setItem('dukan_lang', lang);
 
-      // Toggle button text
+      // 1. Update Document Title & Root Lang Attribute
+      if (document.getElementById('page-title')) {
+        document.getElementById('page-title').innerText = i18n[lang].page_title;
+      }
+      document.title = i18n[lang].page_title;
+      document.documentElement.lang = lang;
+
+      // 2. Toggle button text (shows the OTHER language to switch to)
       const btnLabel = document.getElementById('lang-btn-label');
       if (btnLabel) {
         btnLabel.innerText = lang === 'hi' ? 'English' : 'हिन्दी';
       }
 
-      // Translate static DOM elements
+      // 3. Translate all static DOM elements with data-i18n
       document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (i18n[lang] && i18n[lang][key]) {
@@ -893,7 +987,7 @@
         }
       });
 
-      // Translate placeholders
+      // 4. Translate placeholders with data-i18n-ph
       document.querySelectorAll('[data-i18n-ph]').forEach(el => {
         const key = el.getAttribute('data-i18n-ph');
         if (i18n[lang] && i18n[lang][key]) {
@@ -901,9 +995,17 @@
         }
       });
 
-      // Re-render components with active language
-      if (cachedProducts.length) renderProductGrid(cachedProducts);
-      renderCart();
+      // 5. Re-render the active tab views so all dynamic tables and badges translate immediately
+      if (currentActiveTab === 'billing') {
+        if (cachedProducts.length) renderProductGrid(cachedProducts);
+        renderCart();
+      } else if (currentActiveTab === 'purchase') {
+        loadInventoryTable();
+      } else if (currentActiveTab === 'khata') {
+        loadCustomersList();
+      } else if (currentActiveTab === 'report') {
+        loadDailyReport();
+      }
     }
 
     function toggleLanguage() {
@@ -919,6 +1021,7 @@
 
     // Switch Tabs
     function switchTab(tabId) {
+      currentActiveTab = tabId;
       document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
       document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('tab-active'));
 
@@ -960,7 +1063,10 @@
 
         const card = document.createElement('div');
         card.className = `p-3 rounded-xl border transition shadow-sm cursor-pointer select-none ${isOutOfStock ? 'opacity-60 bg-[#FAFAF7] border-[#E7E5E4] cursor-not-allowed' : 'bg-white border-[#E7E5E4] hover:border-[#15803D] hover:shadow-md'}`;
-        card.onclick = () => { if (!isOutOfStock) addToCart(p); else alert(p.name + (currentLang === 'hi' ? ' खत्म है!' : ' is out of stock!')); };
+        card.onclick = () => { 
+          if (!isOutOfStock) addToCart(p); 
+          else alert(`${p.name} ${i18n[currentLang].alert_out_of_stock}`); 
+        };
         card.innerHTML = `
           <div class="flex justify-between items-start mb-1">
             <h4 class="font-bold text-[#1C1917] text-xs line-clamp-1">${p.name}</h4>
@@ -980,7 +1086,7 @@
       const existing = cart.find(i => i.product_id === p.id);
       if (existing) {
         if (existing.quantity + 1 > p.current_stock) {
-          alert(currentLang === 'hi' ? `दुकान में सिर्फ ${p.current_stock} ${p.unit} ही उपलब्ध है!` : `Only ${p.current_stock} ${p.unit} available in store!`);
+          alert(`${i18n[currentLang].alert_stock_limit_prefix} ${p.current_stock} ${p.unit} ${i18n[currentLang].alert_stock_limit_suffix}`);
           return;
         }
         existing.quantity += 1;
@@ -1003,7 +1109,7 @@
       if (newQty <= 0) {
         cart.splice(idx, 1);
       } else if (newQty > item.max_stock) {
-        alert(currentLang === 'hi' ? `दुकान में सिर्फ ${item.max_stock} ${item.unit} ही उपलब्ध है!` : `Only ${item.max_stock} ${item.unit} available!`);
+        alert(`${i18n[currentLang].alert_stock_limit_prefix} ${item.max_stock} ${item.unit} ${i18n[currentLang].alert_stock_limit_suffix}`);
       } else {
         item.quantity = Math.round(newQty * 100) / 100;
       }
@@ -1018,7 +1124,7 @@
     function renderCart() {
       const container = document.getElementById('cart-items-container');
       const countEl = document.getElementById('cart-count');
-      countEl.innerText = `${cart.length} items`;
+      countEl.innerText = `${cart.length} ${i18n[currentLang].cart_count_suffix}`;
 
       if (!cart.length) {
         container.innerHTML = `<p class="text-[#A8A29E] text-xs text-center py-8">${i18n[currentLang].cart_empty}</p>`;
@@ -1085,7 +1191,7 @@
         changeBox.classList.remove('hidden');
         changeRow.classList.add('hidden');
         dueRow.classList.remove('hidden');
-        lblRecv.innerText = currentLang === 'hi' ? 'अभी जमा किया (Paid Now ₹):' : 'Paid Now (₹):';
+        lblRecv.innerText = i18n[currentLang].lbl_paid_now;
       } else {
         changeBox.classList.add('hidden');
       }
@@ -1128,8 +1234,7 @@
         if (data.customers && data.customers.length > 0) {
           selectCustomer(data.customers[0]);
         } else {
-          const msg = currentLang === 'hi' ? 'ग्राहक नहीं मिला। क्या नया ग्राहक जोड़ना है?' : 'Customer not found. Add new customer?';
-          if (confirm(msg)) {
+          if (confirm(i18n[currentLang].confirm_add_customer)) {
             openNewCustomerModal();
             document.getElementById('new-cust-name').value = q;
           }
@@ -1156,7 +1261,7 @@
       const name = document.getElementById('new-cust-name').value.trim();
       const mobile = document.getElementById('new-cust-mobile').value.trim();
       if (!name) { 
-        alert(currentLang === 'hi' ? 'कृपया ग्राहक का नाम दर्ज करें!' : 'Please enter customer name!'); 
+        alert(i18n[currentLang].alert_enter_name); 
         return; 
       }
 
@@ -1173,23 +1278,21 @@
           document.getElementById('walkin-check').checked = false;
           toggleWalkin(false);
         } else {
-          alert('Error: ' + data.error);
+          alert(i18n[currentLang].error_prefix + data.error);
         }
-      } catch (e) { alert(e.message); }
+      } catch (e) { alert(i18n[currentLang].error_prefix + e.message); }
     }
 
     // 5. SUBMIT SALE
     async function submitSaleBill() {
       if (!cart.length) { 
-        alert(currentLang === 'hi' ? 'कृपया कार्ट में कम से कम एक सामान जोड़ें!' : 'Please add at least one item to cart!'); 
+        alert(i18n[currentLang].alert_cart_empty); 
         return; 
       }
 
       // Validate Udhaar for Walk-in
       if ((currentPaymentMode === 'UDHAAR' || currentPaymentMode === 'PARTIAL') && !selectedCustomerId) {
-        alert(currentLang === 'hi' 
-          ? '⚠️ उधार या Partial बिल के लिए ग्राहक का चयन करना अनिवार्य है! Quick Walk-in को उधार नहीं दिया जा सकता।' 
-          : '⚠️ Please select a customer for Credit/Partial bill! Quick Walk-in cannot take credit.');
+        alert(i18n[currentLang].alert_udhaar_walkin);
         return;
       }
 
@@ -1230,19 +1333,26 @@
           renderCart();
           loadProducts(); // refresh stock
         } else {
-          alert('Error: ' + data.error);
+          alert(i18n[currentLang].error_prefix + data.error);
         }
-      } catch (e) { alert(e.message); }
+      } catch (e) { alert(i18n[currentLang].error_prefix + e.message); }
     }
 
     function showReceipt(bill) {
       document.getElementById('rcpt-bill-no').innerText = bill.bill_number;
       document.getElementById('rcpt-date').innerText = new Date(bill.created_at).toLocaleString(currentLang === 'hi' ? 'hi-IN' : 'en-IN');
-      document.getElementById('rcpt-cust-name').innerText = bill.customer_name ? bill.customer_name : (currentLang === 'hi' ? 'Walk-in (नकद)' : 'Walk-in (Cash)');
+      document.getElementById('rcpt-cust-name').innerText = bill.customer_name ? bill.customer_name : i18n[currentLang].walkin_receipt;
       document.getElementById('rcpt-subtotal').innerText = '₹' + bill.subtotal.toFixed(2);
       document.getElementById('rcpt-discount').innerText = '-₹' + bill.discount.toFixed(2);
       document.getElementById('rcpt-final').innerText = '₹' + bill.final_amount.toFixed(2);
-      document.getElementById('rcpt-mode').innerText = bill.payment_mode;
+      
+      // Localized payment mode label
+      let modeLabel = bill.payment_mode;
+      if (bill.payment_mode === 'CASH') modeLabel = i18n[currentLang].mode_cash_lbl;
+      else if (bill.payment_mode === 'UPI') modeLabel = i18n[currentLang].mode_upi_lbl;
+      else if (bill.payment_mode === 'UDHAAR') modeLabel = i18n[currentLang].mode_udhaar_lbl;
+      else if (bill.payment_mode === 'PARTIAL') modeLabel = i18n[currentLang].mode_partial_lbl;
+      document.getElementById('rcpt-mode').innerText = modeLabel;
 
       const changeRow = document.getElementById('rcpt-change-row');
       const dueRow = document.getElementById('rcpt-due-row');
@@ -1323,15 +1433,13 @@
         hint.classList.remove('hidden');
         if (data.matched) {
           hint.className = 'text-xs mt-1 font-bold text-[#15803D]';
-          hint.innerText = currentLang === 'hi'
-            ? `🟢 पहले से मौजूद: '${data.matched.name}' (वर्तमान स्टॉक: ${data.matched.current_stock} ${data.matched.unit})`
-            : `🟢 Already exists: '${data.matched.name}' (Current Stock: ${data.matched.current_stock} ${data.matched.unit})`;
+          hint.innerText = `${i18n[currentLang].hint_already_exists} '${data.matched.name}' (${i18n[currentLang].hint_stock_cur} ${data.matched.current_stock} ${data.matched.unit})`;
           document.getElementById('purch-unit').value = data.matched.unit;
           document.getElementById('purch-cp').value = data.matched.cost_price;
           document.getElementById('purch-sp').value = data.matched.selling_price;
         } else {
           hint.className = 'text-xs mt-1 font-bold text-[#B45309]';
-          hint.innerText = currentLang === 'hi' ? `🟡 नया सामान: नया प्रॉडक्ट बनाया जाएगा` : `🟡 New Product: Will create new item`;
+          hint.innerText = i18n[currentLang].hint_new_product;
         }
       } catch (e) { console.error(e); }
     }
@@ -1345,7 +1453,7 @@
       const alertLimit = parseFloat(document.getElementById('purch-alert-limit').value) || 5;
 
       if (!name || isNaN(qty) || isNaN(cp) || qty <= 0) {
-        alert(currentLang === 'hi' ? 'कृपया नाम, मात्रा और खरीद रेट सही दर्ज करें!' : 'Please enter valid name, quantity, and cost price!');
+        alert(i18n[currentLang].alert_valid_stockin);
         return;
       }
 
@@ -1372,9 +1480,9 @@
           document.getElementById('match-hint').classList.add('hidden');
           loadInventoryTable();
         } else {
-          alert('Error: ' + data.error);
+          alert(i18n[currentLang].error_prefix + data.error);
         }
-      } catch (e) { alert(e.message); }
+      } catch (e) { alert(i18n[currentLang].error_prefix + e.message); }
     }
 
     async function loadInventoryTable() {
@@ -1412,14 +1520,12 @@
     }
 
     async function changeProductAlertLimit(productId, name, currentLimit) {
-      const promptMsg = currentLang === 'hi' 
-        ? `'${name}' के लिए नई अलर्ट लिमिट (Re-order Threshold) दर्ज करें:\n(जब स्टॉक इस संख्या से कम होगा, तब शाम की रिपोर्ट में अलर्ट आएगा)`
-        : `Enter new low-stock alert threshold for '${name}':\n(When stock falls below this, it appears on the re-order list)`;
+      const promptMsg = `${i18n[currentLang].prompt_alert_limit_part1}${name}${i18n[currentLang].prompt_alert_limit_part2}`;
       const newLimitStr = prompt(promptMsg, currentLimit);
       if (newLimitStr === null) return;
       const parsedLimit = parseFloat(newLimitStr);
       if (isNaN(parsedLimit) || parsedLimit < 0) {
-        alert(currentLang === 'hi' ? 'कृपया 0 या उससे बड़ी मान्य संख्या दर्ज करें!' : 'Please enter a valid number >= 0!');
+        alert(i18n[currentLang].alert_valid_number);
         return;
       }
 
@@ -1433,10 +1539,10 @@
         if (data.success) {
           loadInventoryTable();
         } else {
-          alert('Error: ' + data.error);
+          alert(i18n[currentLang].error_prefix + data.error);
         }
       } catch (e) {
-        alert('Alert limit error: ' + e.message);
+        alert(i18n[currentLang].error_prefix + e.message);
       }
     }
 
@@ -1448,7 +1554,7 @@
         const tbody = document.getElementById('customers-tbody');
         tbody.innerHTML = '';
         if (!data.customers.length) {
-          tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-[#A8A29E]">${currentLang === 'hi' ? 'कोई ग्राहक नहीं मिला' : 'No customers found'}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-[#A8A29E]">${i18n[currentLang].no_customers}</td></tr>`;
           return;
         }
         data.customers.forEach(c => {
@@ -1471,18 +1577,18 @@
       try {
         const res = await fetch(`/api/customers/${customerId}/statement`);
         const data = await res.json();
-        if (!data.success) { alert('Error: ' + data.error); return; }
+        if (!data.success) { alert(i18n[currentLang].error_prefix + data.error); return; }
 
         const stmt = data.statement;
         document.getElementById('stmt-cust-name').innerText = stmt.customer.name;
-        document.getElementById('stmt-cust-mobile').innerText = stmt.customer.mobile ? `मोबाइल: ${stmt.customer.mobile}` : 'मोबाइल: -';
+        document.getElementById('stmt-cust-mobile').innerText = stmt.customer.mobile ? `${i18n[currentLang].mobile_label}: ${stmt.customer.mobile}` : `${i18n[currentLang].mobile_label}: ${i18n[currentLang].mobile_not_avail}`;
         document.getElementById('stmt-total-due').innerText = '₹' + stmt.total_current_due.toFixed(2);
 
         const tbody = document.getElementById('stmt-monthly-tbody');
         tbody.innerHTML = '';
 
         if (!stmt.months_summary || stmt.months_summary.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-[#A8A29E] text-xs">${currentLang === 'hi' ? 'इस ग्राहक का कोई पिछला उधारी रिकॉर्ड नहीं है।' : 'No credit records found for this customer.'}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-[#A8A29E] text-xs">${i18n[currentLang].no_credit_records}</td></tr>`;
         } else {
           stmt.months_summary.forEach(m => {
             const tr = document.createElement('tr');
@@ -1498,7 +1604,7 @@
 
         document.getElementById('modal-customer-statement').classList.remove('hidden');
       } catch (e) {
-        alert('Statement error: ' + e.message);
+        alert(i18n[currentLang].error_prefix + e.message);
       }
     }
 
@@ -1515,7 +1621,7 @@
       const amt = parseFloat(document.getElementById('settle-amount').value);
       const mode = document.getElementById('settle-mode').value;
       if (!amt || amt <= 0) { 
-        alert(currentLang === 'hi' ? 'सही राशि दर्ज करें!' : 'Enter valid amount!'); 
+        alert(i18n[currentLang].alert_enter_valid_amount); 
         return; 
       }
 
@@ -1527,13 +1633,13 @@
         });
         const data = await res.json();
         if (data.success) {
-          alert(`✅ ₹${amt} ${currentLang === 'hi' ? 'जमा हो गए! नया बकाया: ₹' : 'collected! New due: ₹'}${data.data.new_due}`);
+          alert(`✅ ₹${amt} ${i18n[currentLang].alert_deposit_success}${data.data.new_due}`);
           closeModal('modal-settle-udhaar');
           loadCustomersList();
         } else {
-          alert('Error: ' + data.error);
+          alert(i18n[currentLang].error_prefix + data.error);
         }
-      } catch (e) { alert(e.message); }
+      } catch (e) { alert(i18n[currentLang].error_prefix + e.message); }
     }
 
     // 8. TAB 4: DAILY REPORTS LOGIC
@@ -1549,7 +1655,7 @@
 
         document.getElementById('report-date-picker').value = fin.date;
         document.getElementById('rep-total-sales').innerText = '₹' + fin.total_sales.toFixed(2);
-        document.getElementById('rep-bill-count').innerText = fin.total_bills + (currentLang === 'hi' ? ' बिल' : ' bills');
+        document.getElementById('rep-bill-count').innerText = `${fin.total_bills} ${i18n[currentLang].bills_suffix}`;
         document.getElementById('rep-cash-drawer').innerText = '₹' + fin.total_money_in.cash_in_drawer.toFixed(2);
         document.getElementById('rep-upi-bank').innerText = '₹' + fin.total_money_in.upi_in_bank.toFixed(2);
         document.getElementById('rep-new-udhaar').innerText = '₹' + fin.sales_breakdown.new_udhaar.toFixed(2);
@@ -1583,7 +1689,7 @@
           outList.forEach(p => {
             const card = document.createElement('div');
             card.className = 'flex justify-between items-center p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800';
-            card.innerHTML = `<span><b>${p.name}</b>${i18n[currentLang].item_out_suffix}</span><span class="font-bold bg-white px-2 py-0.5 rounded border border-red-200">Stock: 0</span>`;
+            card.innerHTML = `<span><b>${p.name}</b>${i18n[currentLang].item_out_suffix}</span><span class="font-bold bg-white px-2 py-0.5 rounded border border-red-200">${i18n[currentLang].stock_label}: 0</span>`;
             reorderContainer.appendChild(card);
           });
           lowList.forEach(p => {
