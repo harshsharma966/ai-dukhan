@@ -152,20 +152,63 @@
               </div>
 
               <!-- Customer Selector (Hidden if Walk-in) -->
-              <div id="customer-select-box" class="hidden space-y-2">
-                <div class="flex gap-2">
-                  <input type="text" id="cust-search-input" data-i18n-ph="search_cust_ph" placeholder="ग्राहक का नाम / मोबाइल..." class="w-full text-xs p-2 rounded-lg border border-[#E7E5E4] bg-white focus:outline-none focus:border-[#15803D]">
-                  <button onclick="searchCustomer()" data-i18n="search_btn" class="bg-[#1C1917] text-white text-xs px-3 rounded-lg hover:bg-black font-semibold transition">खोजें</button>
-                  <button onclick="openNewCustomerModal()" data-i18n="new_btn" class="bg-[#15803D] hover:bg-[#166534] text-white text-xs px-3 rounded-lg font-bold transition">+ नया</button>
-                </div>
-                <div id="selected-customer-badge" class="hidden bg-[#FFFBEB] border border-[#FDE68A] p-2.5 rounded-lg text-xs flex justify-between items-center">
-                  <div>
-                    <span class="font-bold text-[#92400E]" id="badge-cust-name">-</span>
-                    <span class="text-[#B45309] ml-1" id="badge-cust-phone"></span>
+              <div id="customer-select-box" class="hidden space-y-2 relative">
+                <!-- Search & Actions Container -->
+                <div id="cust-search-container" class="relative">
+                  <div class="flex gap-2">
+                    <div class="relative flex-1">
+                      <input type="text" id="cust-search-input" 
+                        data-i18n-ph="search_cust_ph" 
+                        placeholder="ग्राहक का नाम / मोबाइल या लिस्ट से चुनें..." 
+                        autocomplete="off"
+                        onfocus="showCustomerDropdown()" 
+                        oninput="debounceCustomerSearch(this.value)"
+                        onkeydown="handleCustomerKeydown(event)"
+                        class="w-full text-xs p-2 pl-7 pr-6 rounded-lg border border-[#E7E5E4] bg-white focus:outline-none focus:border-[#15803D] focus:ring-1 focus:ring-[#15803D]">
+                      <span class="absolute left-2.5 top-2.5 text-[11px] text-[#78716C] pointer-events-none">🔍</span>
+                      <button id="cust-search-clear-btn" type="button" onclick="clearCustomerSearchInput()" class="hidden absolute right-2 top-2 text-[#78716C] hover:text-black text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">✕</button>
+                    </div>
+                    <button type="button" onclick="searchCustomer()" data-i18n="search_btn" class="bg-[#1C1917] text-white text-xs px-3 rounded-lg hover:bg-black font-semibold transition shrink-0">खोजें</button>
+                    <button type="button" onclick="openNewCustomerModal()" data-i18n="new_btn" class="bg-[#15803D] hover:bg-[#166534] text-white text-xs px-3 rounded-lg font-bold transition shrink-0">+ नया</button>
                   </div>
-                  <div class="text-right">
-                    <span class="text-[#78716C]" data-i18n="due_label">बकाया: </span>
-                    <span class="font-bold text-red-600" id="badge-cust-due">₹0</span>
+
+                  <!-- Dropdown Results Popup -->
+                  <div id="cust-dropdown-menu" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-[#E7E5E4] rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto">
+                    <!-- Dropdown Header -->
+                    <div class="p-2 border-b border-[#E7E5E4] bg-[#FAFAF7] flex justify-between items-center text-[11px] font-bold text-[#78716C]">
+                      <span data-i18n="cust_dropdown_title">👥 पंजीकृत ग्राहक (क्लिक करके चुनें)</span>
+                      <span id="cust-dropdown-count" class="text-[10px] bg-white px-1.5 py-0.5 rounded border border-[#E7E5E4] font-semibold text-[#15803D]">0</span>
+                    </div>
+                    <!-- Customer List Container -->
+                    <div id="cust-dropdown-list" class="divide-y divide-[#F5F5F4]">
+                      <!-- Rendered dynamically -->
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Selected Customer Badge / Card -->
+                <div id="selected-customer-badge" class="hidden bg-[#F0FDF4] border border-[#86EFAC] p-2.5 rounded-lg text-xs flex justify-between items-center transition shadow-sm">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-full bg-[#15803D] text-white flex items-center justify-center font-bold text-xs uppercase shadow-inner shrink-0" id="badge-cust-avatar">
+                      👤
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-1.5">
+                        <span class="font-bold text-[#14532D] text-sm" id="badge-cust-name">-</span>
+                        <span class="text-[10px] bg-[#DCFCE7] text-[#15803D] px-1.5 py-0.2 rounded font-semibold border border-[#BBF7D0]" data-i18n="selected_tag">चयनित</span>
+                      </div>
+                      <span class="text-[#166534] text-[11px]" id="badge-cust-phone"></span>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <div class="text-right">
+                      <span class="text-[#78716C] text-[10px] block" data-i18n="due_label">बकाया: </span>
+                      <span class="font-extrabold text-sm text-red-600" id="badge-cust-due">₹0</span>
+                    </div>
+                    <button type="button" onclick="clearSelectedCustomer()" title="बदलें / हटाएं" class="p-1 px-2 rounded-md text-[#78716C] hover:text-red-600 hover:bg-red-50 border border-[#E7E5E4] bg-white font-bold transition text-xs flex items-center gap-1">
+                      <span>✕</span>
+                      <span class="text-[10px]" data-i18n="change_cust_btn">बदलें</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -400,9 +443,9 @@
           </div>
 
           <div class="bg-amber-50/60 p-4 rounded-xl border border-amber-200">
-            <span class="text-xs font-bold text-amber-900 block" data-i18n="stat_new_udhaar">नया उधार दिया (Udhaar)</span>
+            <span class="text-xs font-bold text-amber-900 block" data-i18n="stat_new_udhaar">बाकी उधार (Market Udhaar)</span>
             <span class="text-xl font-extrabold text-amber-950" id="rep-new-udhaar">₹0.00</span>
-            <span class="text-[11px] text-amber-700 block mt-1 font-semibold" data-i18n="stat_udhaar_sub">आज बाकी</span>
+            <span class="text-[11px] text-amber-700 block mt-1 font-semibold" id="rep-udhaar-sub" data-i18n="stat_udhaar_sub">आज बाकी</span>
           </div>
         </div>
 
@@ -531,9 +574,9 @@
           <span data-i18n="subtotal">कुल रकम:</span>
           <span class="font-bold text-[#1C1917]" id="rcpt-subtotal">₹0.00</span>
         </div>
-        <div class="flex justify-between text-[#78716C]">
+        <div id="rcpt-discount-row" class="hidden flex justify-between text-[#15803D] font-bold bg-[#DCFCE7]/60 px-1.5 py-0.5 rounded">
           <span data-i18n="discount">छूट (Discount):</span>
-          <span id="rcpt-discount">₹0.00</span>
+          <span id="rcpt-discount">-₹0.00</span>
         </div>
         <div class="flex justify-between font-extrabold text-sm text-[#1C1917] border-t border-[#E7E5E4] pt-1">
           <span data-i18n="final_due">फाइनल देय:</span>
@@ -664,10 +707,19 @@
         all_btn: "सभी",
         select_customer: "ग्राहक चुनें",
         walkin_label: "⚡ Quick Walk-in (नकद ग्राहक)",
-        search_cust_ph: "ग्राहक का नाम / मोबाइल...",
+        search_cust_ph: "ग्राहक का नाम / मोबाइल या लिस्ट से चुनें...",
         search_btn: "खोजें",
         new_btn: "+ नया",
         due_label: "बकाया: ",
+        cust_dropdown_title: "👥 पंजीकृत ग्राहक (क्लिक करके चुनें)",
+        no_cust_found: "कोई ग्राहक नहीं मिला",
+        click_to_select: "चुनने के लिए क्लिक करें",
+        btn_select_cust: "चुनें ✓",
+        change_cust_btn: "बदलें",
+        no_mobile_label: "कोई मोबाइल नहीं",
+        no_due_badge: "चुकता (₹0)",
+        add_cust_prompt_btn: "+ नया ग्राहक जोड़ें",
+        selected_tag: "चयनित",
         cart_items_title: "सामान सूची (Cart Items)",
         cart_empty: "कार्ट खाली है। बाईं तरफ से सामान चुनें।",
         subtotal: "उप-योग (Subtotal):",
@@ -817,10 +869,19 @@
         all_btn: "All",
         select_customer: "Select Customer",
         walkin_label: "⚡ Quick Walk-in (Cash Sale)",
-        search_cust_ph: "Customer name or mobile...",
+        search_cust_ph: "Customer name / mobile or pick from list...",
         search_btn: "Search",
         new_btn: "+ New",
         due_label: "Due: ",
+        cust_dropdown_title: "👥 Registered Customers (Click to select)",
+        no_cust_found: "No customer found",
+        click_to_select: "Click to select",
+        btn_select_cust: "Select ✓",
+        change_cust_btn: "Change",
+        no_mobile_label: "No mobile",
+        no_due_badge: "Nil (₹0)",
+        add_cust_prompt_btn: "+ Add New Customer",
+        selected_tag: "Selected",
         cart_items_title: "Cart Items",
         cart_empty: "Cart is empty. Select items from the left.",
         subtotal: "Subtotal:",
@@ -1215,43 +1276,226 @@
     }
 
     // 4. CUSTOMER LOGIC
+    let cachedCustomers = [];
+    let custSearchDebounceTimer = null;
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function toggleWalkin(isWalkin) {
       const box = document.getElementById('customer-select-box');
       if (isWalkin) {
         box.classList.add('hidden');
         selectedCustomerId = null;
+        closeCustomerDropdown();
       } else {
         box.classList.remove('hidden');
+        if (!selectedCustomerId) {
+          const inp = document.getElementById('cust-search-input');
+          inp.focus();
+          showCustomerDropdown();
+        }
       }
+    }
+
+    async function fetchCustomers(q = '') {
+      try {
+        const url = q ? ('/api/customers/search?q=' + encodeURIComponent(q)) : '/api/customers';
+        const res = await fetch(url);
+        const data = await res.json();
+        return data.customers || [];
+      } catch (e) {
+        console.error('Error fetching customers:', e);
+        return [];
+      }
+    }
+
+    async function showCustomerDropdown() {
+      const inp = document.getElementById('cust-search-input');
+      const q = inp.value.trim();
+      const menu = document.getElementById('cust-dropdown-menu');
+      if (!menu) return;
+      menu.classList.remove('hidden');
+      document.getElementById('cust-search-clear-btn').classList.toggle('hidden', !q);
+      
+      const listContainer = document.getElementById('cust-dropdown-list');
+      listContainer.innerHTML = `<div class="p-3 text-center text-xs text-[#78716C]">⏳ ${currentLang === 'hi' ? 'लोड हो रहा है...' : 'Loading...'}</div>`;
+      
+      const list = await fetchCustomers(q);
+      cachedCustomers = list;
+      renderCustomerDropdown(list, q);
+    }
+
+    function closeCustomerDropdown() {
+      const menu = document.getElementById('cust-dropdown-menu');
+      if (menu) menu.classList.add('hidden');
+    }
+
+    function debounceCustomerSearch(val) {
+      clearTimeout(custSearchDebounceTimer);
+      document.getElementById('cust-search-clear-btn').classList.toggle('hidden', !val.trim());
+      custSearchDebounceTimer = setTimeout(async () => {
+        const q = val.trim();
+        const list = await fetchCustomers(q);
+        cachedCustomers = list;
+        document.getElementById('cust-dropdown-menu').classList.remove('hidden');
+        renderCustomerDropdown(list, q);
+      }, 200);
+    }
+
+    function clearCustomerSearchInput() {
+      const inp = document.getElementById('cust-search-input');
+      inp.value = '';
+      document.getElementById('cust-search-clear-btn').classList.add('hidden');
+      inp.focus();
+      showCustomerDropdown();
+    }
+
+    function handleCustomerKeydown(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (cachedCustomers && cachedCustomers.length === 1) {
+          selectCustomer(cachedCustomers[0]);
+        } else {
+          searchCustomer();
+        }
+      } else if (e.key === 'Escape') {
+        closeCustomerDropdown();
+      }
+    }
+
+    function renderCustomerDropdown(list, query) {
+      const listContainer = document.getElementById('cust-dropdown-list');
+      const countEl = document.getElementById('cust-dropdown-count');
+      if (countEl) countEl.innerText = list.length;
+
+      if (!list || list.length === 0) {
+        const escapedQ = escapeHtml(query);
+        listContainer.innerHTML = `
+          <div class="p-4 text-center">
+            <p class="text-xs text-[#78716C] mb-2 font-medium">${i18n[currentLang].no_cust_found}</p>
+            <button type="button" onclick="openNewCustomerModalWithQuery('${escapedQ}')" class="text-xs bg-[#15803D] hover:bg-[#166534] text-white font-bold py-1.5 px-3 rounded-lg shadow-sm transition">
+              ${i18n[currentLang].add_cust_prompt_btn}
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      listContainer.innerHTML = list.map(c => {
+        const initial = (c.name || 'C').trim().charAt(0).toUpperCase();
+        const due = parseFloat(c.current_due) || 0;
+        const dueHtml = due > 0 
+          ? `<span class="text-red-600 font-extrabold">₹${due.toFixed(2)}</span>`
+          : `<span class="text-[#15803D] font-bold">${i18n[currentLang].no_due_badge}</span>`;
+        const phone = c.mobile || `<span class="text-[#A8A29E] italic">${i18n[currentLang].no_mobile_label}</span>`;
+
+        return `
+          <div class="p-2.5 hover:bg-[#F0FDF4] cursor-pointer flex justify-between items-center transition group"
+               onclick="selectCustomerById(${c.id})"
+               oncontextmenu="event.preventDefault(); selectCustomerById(${c.id});"
+               title="${i18n[currentLang].click_to_select}">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-full bg-[#E2E8F0] text-[#334155] flex items-center justify-center font-bold text-xs uppercase group-hover:bg-[#15803D] group-hover:text-white transition shrink-0 shadow-xs">
+                ${initial}
+              </div>
+              <div>
+                <div class="font-bold text-[#1C1917] group-hover:text-[#15803D] text-xs transition">${escapeHtml(c.name)}</div>
+                <div class="text-[11px] text-[#78716C] flex items-center gap-1">📞 ${phone}</div>
+              </div>
+            </div>
+            <div class="text-right flex items-center gap-2 shrink-0">
+              <div>
+                <div class="text-[10px] text-[#78716C]">${i18n[currentLang].due_label}</div>
+                <div class="text-xs">${dueHtml}</div>
+              </div>
+              <button type="button" class="text-[11px] bg-[#15803D] text-white px-2 py-1 rounded font-bold transition shadow-sm hover:bg-[#166534]">
+                ${i18n[currentLang].btn_select_cust}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectCustomerById(id) {
+      const c = cachedCustomers.find(item => item.id === id);
+      if (c) selectCustomer(c);
     }
 
     async function searchCustomer() {
       const q = document.getElementById('cust-search-input').value.trim();
-      if (!q) return;
-      try {
-        const res = await fetch('/api/customers/search?q=' + encodeURIComponent(q));
-        const data = await res.json();
-        if (data.customers && data.customers.length > 0) {
-          selectCustomer(data.customers[0]);
-        } else {
-          if (confirm(i18n[currentLang].confirm_add_customer)) {
-            openNewCustomerModal();
-            document.getElementById('new-cust-name').value = q;
-          }
+      const list = await fetchCustomers(q);
+      cachedCustomers = list;
+      document.getElementById('cust-dropdown-menu').classList.remove('hidden');
+      renderCustomerDropdown(list, q);
+      if (list.length === 1) {
+        selectCustomer(list[0]);
+      } else if (list.length === 0) {
+        if (confirm(i18n[currentLang].confirm_add_customer)) {
+          openNewCustomerModalWithQuery(q);
         }
-      } catch (e) { console.error(e); }
+      }
     }
 
     function selectCustomer(c) {
       selectedCustomerId = c.id;
-      document.getElementById('selected-customer-badge').classList.remove('hidden');
+      closeCustomerDropdown();
+      
+      const badge = document.getElementById('selected-customer-badge');
+      badge.classList.remove('hidden');
       document.getElementById('badge-cust-name').innerText = c.name;
       document.getElementById('badge-cust-phone').innerText = c.mobile ? `(${c.mobile})` : '';
-      document.getElementById('badge-cust-due').innerText = `₹${c.current_due.toFixed(2)}`;
+      
+      const avatarEl = document.getElementById('badge-cust-avatar');
+      if (avatarEl) {
+        avatarEl.innerText = (c.name || 'C').trim().charAt(0).toUpperCase();
+      }
+
+      const due = parseFloat(c.current_due) || 0;
+      const dueEl = document.getElementById('badge-cust-due');
+      dueEl.innerText = `₹${due.toFixed(2)}`;
+      if (due > 0) {
+        dueEl.className = 'font-extrabold text-sm text-red-600';
+      } else {
+        dueEl.className = 'font-extrabold text-sm text-[#15803D]';
+      }
+
+      document.getElementById('cust-search-input').value = '';
+      document.getElementById('cust-search-clear-btn').classList.add('hidden');
+    }
+
+    function clearSelectedCustomer() {
+      selectedCustomerId = null;
+      document.getElementById('selected-customer-badge').classList.add('hidden');
+      const inp = document.getElementById('cust-search-input');
+      inp.value = '';
+      inp.focus();
+      showCustomerDropdown();
+    }
+
+    function openNewCustomerModalWithQuery(q) {
+      closeCustomerDropdown();
+      openNewCustomerModal();
+      if (q) {
+        if (/^\d{5,}$/.test(q)) {
+          document.getElementById('new-cust-mobile').value = q;
+        } else {
+          document.getElementById('new-cust-name').value = q;
+        }
+      }
     }
 
     function openNewCustomerModal() {
       document.getElementById('modal-new-customer').classList.remove('hidden');
+      setTimeout(() => document.getElementById('new-cust-name').focus(), 50);
     }
     function closeModal(id) {
       document.getElementById(id).classList.add('hidden');
@@ -1340,11 +1584,23 @@
 
     function showReceipt(bill) {
       document.getElementById('rcpt-bill-no').innerText = bill.bill_number;
-      document.getElementById('rcpt-date').innerText = new Date(bill.created_at).toLocaleString(currentLang === 'hi' ? 'hi-IN' : 'en-IN');
+      document.getElementById('rcpt-date').innerText = new Date(bill.created_at || bill.bill_date).toLocaleString(currentLang === 'hi' ? 'hi-IN' : 'en-IN');
       document.getElementById('rcpt-cust-name').innerText = bill.customer_name ? bill.customer_name : i18n[currentLang].walkin_receipt;
-      document.getElementById('rcpt-subtotal').innerText = '₹' + bill.subtotal.toFixed(2);
-      document.getElementById('rcpt-discount').innerText = '-₹' + bill.discount.toFixed(2);
-      document.getElementById('rcpt-final').innerText = '₹' + bill.final_amount.toFixed(2);
+      
+      const subtotalVal = Number(bill.subtotal !== undefined ? bill.subtotal : bill.total_amount) || 0;
+      const discountVal = Number(bill.discount) || 0;
+      const finalVal = Number(bill.final_amount) || 0;
+
+      document.getElementById('rcpt-subtotal').innerText = '₹' + subtotalVal.toFixed(2);
+      document.getElementById('rcpt-final').innerText = '₹' + finalVal.toFixed(2);
+
+      const discountRow = document.getElementById('rcpt-discount-row');
+      if (discountVal > 0) {
+        if (discountRow) discountRow.classList.remove('hidden');
+        document.getElementById('rcpt-discount').innerText = '-₹' + discountVal.toFixed(2);
+      } else {
+        if (discountRow) discountRow.classList.add('hidden');
+      }
       
       // Localized payment mode label
       let modeLabel = bill.payment_mode;
@@ -1360,14 +1616,14 @@
 
       if (bill.payment_mode === 'CASH') {
         changeRow.classList.remove('hidden');
-        document.getElementById('rcpt-change').innerText = '₹' + (bill.change_amount || 0).toFixed(2);
+        document.getElementById('rcpt-change').innerText = '₹' + (Number(bill.change_amount) || 0).toFixed(2);
       } else {
         changeRow.classList.add('hidden');
       }
 
-      if (bill.due_amount > 0) {
+      if ((Number(bill.due_amount) || 0) > 0) {
         dueRow.classList.remove('hidden');
-        document.getElementById('rcpt-due').innerText = '₹' + bill.due_amount.toFixed(2);
+        document.getElementById('rcpt-due').innerText = '₹' + (Number(bill.due_amount) || 0).toFixed(2);
       } else {
         dueRow.classList.add('hidden');
       }
@@ -1375,9 +1631,9 @@
       // Customer Udhaar Ledger (Previous Due + New Due + Total Due)
       if (bill.customer_id) {
         ledgerBox.classList.remove('hidden');
-        const prevDue = bill.customer_previous_due || 0;
-        const addedDue = bill.due_amount || 0;
-        const totalDue = bill.total_current_due !== undefined ? bill.total_current_due : (prevDue + addedDue);
+        const prevDue = Number(bill.previous_due !== undefined ? bill.previous_due : (bill.customer_previous_due || 0)) || 0;
+        const addedDue = Number(bill.due_amount) || 0;
+        const totalDue = Number(bill.total_current_due !== undefined ? bill.total_current_due : (prevDue + addedDue)) || 0;
 
         document.getElementById('rcpt-prev-due').innerText = '₹' + prevDue.toFixed(2);
         document.getElementById('rcpt-current-added-due').innerText = '₹' + addedDue.toFixed(2);
@@ -1658,7 +1914,20 @@
         document.getElementById('rep-bill-count').innerText = `${fin.total_bills} ${i18n[currentLang].bills_suffix}`;
         document.getElementById('rep-cash-drawer').innerText = '₹' + fin.total_money_in.cash_in_drawer.toFixed(2);
         document.getElementById('rep-upi-bank').innerText = '₹' + fin.total_money_in.upi_in_bank.toFixed(2);
-        document.getElementById('rep-new-udhaar').innerText = '₹' + fin.sales_breakdown.new_udhaar.toFixed(2);
+        const totalMarketDue = fin.sales_breakdown.total_market_due !== undefined ? fin.sales_breakdown.total_market_due : (fin.sales_breakdown.net_udhaar_today !== undefined ? fin.sales_breakdown.net_udhaar_today : fin.sales_breakdown.new_udhaar);
+        const givenToday = Number(fin.sales_breakdown.new_udhaar) || 0;
+        const recoveredTotal = Number(fin.udhaar_recovered ? fin.udhaar_recovered.total : 0) || 0;
+
+        document.getElementById('rep-new-udhaar').innerText = '₹' + Number(totalMarketDue).toFixed(2);
+        
+        const udhaarSubEl = document.getElementById('rep-udhaar-sub');
+        if (udhaarSubEl) {
+          if (currentLang === 'hi') {
+            udhaarSubEl.innerText = `आज दिया: ₹${givenToday.toFixed(0)} | वसूली: ₹${recoveredTotal.toFixed(0)}`;
+          } else {
+            udhaarSubEl.innerText = `Given: ₹${givenToday.toFixed(0)} | Collected: ₹${recoveredTotal.toFixed(0)}`;
+          }
+        }
 
         // Items Sold
         const tbody = document.getElementById('rep-items-tbody');

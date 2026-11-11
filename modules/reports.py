@@ -50,6 +50,16 @@ class DailyReports:
 
             total_cash_in_drawer = row["sales_cash"] + pay_row["recovered_cash"]
             total_upi_received = row["sales_upi"] + pay_row["recovered_upi"]
+            new_udhaar_given = float(row["new_udhaar"])
+            total_recovered = float(pay_row["total_recovered"])
+            net_udhaar_today = max(0.0, round(new_udhaar_given - total_recovered, 2))
+
+            # Total outstanding currently across all registered customers
+            cust_due_row = conn.execute("""
+                SELECT COALESCE(SUM(current_due), 0) AS total_market_due
+                FROM customers;
+            """).fetchone()
+            total_market_due = float(cust_due_row["total_market_due"] if cust_due_row else 0.0)
 
             return {
                 "date": report_date,
@@ -59,12 +69,14 @@ class DailyReports:
                 "sales_breakdown": {
                     "cash_sales": row["sales_cash"],
                     "upi_sales": row["sales_upi"],
-                    "new_udhaar": row["new_udhaar"]
+                    "new_udhaar": new_udhaar_given,
+                    "net_udhaar_today": net_udhaar_today,
+                    "total_market_due": total_market_due
                 },
                 "udhaar_recovered": {
                     "cash": pay_row["recovered_cash"],
                     "upi": pay_row["recovered_upi"],
-                    "total": pay_row["total_recovered"]
+                    "total": total_recovered
                 },
                 "total_money_in": {
                     "cash_in_drawer": total_cash_in_drawer,

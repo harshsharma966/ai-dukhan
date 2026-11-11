@@ -160,7 +160,7 @@ async def get_customers():
     return {"success": True, "customers": customers.get_all_customers()}
 
 @app.get("/api/customers/search")
-async def search_customer(q: str = Query(...)):
+async def search_customer(q: str = Query("")):
     found = customers.search_customers(q.strip())
     return {"success": True, "customers": found}
 
@@ -229,7 +229,9 @@ async def create_sales_bill(payload: CreateSalePayload):
         bill = sales.get_bill(bill_id)
 
         # Attach customer ledger & monthly summary for receipt
+        bill["subtotal"] = float(bill["total_amount"])
         bill["previous_due"] = prev_due
+        bill["customer_previous_due"] = prev_due
         bill["total_current_due"] = prev_due + float(bill["due_amount"])
         bill["monthly_summary"] = []
 

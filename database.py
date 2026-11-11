@@ -359,8 +359,8 @@ class Database:
                 INSERT INTO sales_bills
                 (bill_number, customer_id, total_amount, discount, final_amount,
                  payment_mode, amount_received, paid_amount, change_amount, due_amount)
-                VALUES (?, ?, 0, ?, 0, ?, ?, 0, 0, 0)
-            """, (bill_number, customer_id, discount, payment_mode, amount_received))
+                VALUES (?, ?, 0, 0, 0, ?, ?, 0, 0, 0)
+            """, (bill_number, customer_id, payment_mode, amount_received))
             return cur.lastrowid
 
     def add_sales_item(self, sales_bill_id, product_id, quantity, selling_price=None):
@@ -416,7 +416,8 @@ class Database:
             (sales_bill_id,)
         ).fetchone()[0]
 
-        disc = discount if discount is not None else bill["discount"]
+        raw_disc = discount if discount is not None else bill["discount"]
+        disc = min(max(0.0, float(raw_disc or 0.0)), float(total_amount))
         pm = payment_mode if payment_mode is not None else bill["payment_mode"]
         recv = amount_received if amount_received is not None else bill["amount_received"]
 
