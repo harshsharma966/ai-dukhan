@@ -192,6 +192,21 @@ async def create_sales_bill(payload: CreateSalePayload):
 
         payment_mode = payload.payment_mode.upper()
 
+        # Validate Partial payment logic
+        subtotal = sum(it.quantity * it.selling_price for it in payload.items)
+        final_amount = max(0.0, round(subtotal - float(payload.discount or 0), 2))
+        if payment_mode == 'PARTIAL':
+            if payload.amount_received >= final_amount:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Partial payment (₹{payload.amount_received:.2f}) bill total (₹{final_amount:.2f}) se kam honi chahiye. Agar poora ya zyada paisa mila hai toh CASH mode chunein."
+                )
+            if payload.amount_received <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Partial payment amount 0 se zyada honi chahiye. Agar koi paisa nahi mila toh UDHAAR mode chunein."
+                )
+
         # Check customer previous due
         prev_due = 0.0
         if payload.customer_id:
@@ -199,12 +214,12 @@ async def create_sales_bill(payload: CreateSalePayload):
             if c_info:
                 prev_due = float(c_info["current_due"])
 
-        # 1. Create draft bill
+        # 1. Create draft bill (with discount=0 initially so CHECK constraint holds)
         bill_id = sales.create_bill(
             customer_id=payload.customer_id,
             payment_mode=payment_mode,
             amount_received=payload.amount_received,
-            discount=payload.discount
+            discount=0.0
         )
 
         # 2. Add cart items

@@ -64,6 +64,44 @@
     ::-webkit-scrollbar-track { background: #FAFAF7; }
     ::-webkit-scrollbar-thumb { background: #D6D3D1; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #A8A29E; }
+    /* Print optimization: Print ONLY the receipt on a single clean page */
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+      #modal-receipt, #modal-receipt * {
+        visibility: visible !important;
+      }
+      #modal-receipt {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        display: block !important;
+        z-index: 999999 !important;
+      }
+      #modal-receipt > div {
+        max-width: 380px !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        box-shadow: none !important;
+        border: 1px dashed #78716C !important;
+        padding: 10px !important;
+        page-break-after: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      #modal-receipt button {
+        display: none !important;
+      }
+      @page {
+        margin: 4mm !important;
+        size: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="bg-[#FAFAF7] text-[#1C1917] antialiased min-h-screen flex flex-col">
@@ -265,9 +303,12 @@
                 <span class="text-[#78716C]" data-i18n="lbl_change">🔄 छुट्टे वापस करें (Change):</span>
                 <span class="text-sm font-extrabold text-[#15803D]" id="disp-change">₹0.00</span>
               </div>
-              <div id="due-display-row" class="hidden flex justify-between items-center text-xs pt-1.5 border-t border-[#FDE68A]">
-                <span class="text-[#78716C]" data-i18n="lbl_due">📒 बकाया उधारी (Due):</span>
-                <span class="text-sm font-bold text-red-600" id="disp-due">₹0.00</span>
+              <div id="due-display-row" class="hidden flex flex-col gap-1 pt-1.5 border-t border-[#FDE68A]">
+                <div class="flex justify-between items-center text-xs">
+                  <span class="text-[#78716C]" data-i18n="lbl_due">📒 बकाया उधारी (Due):</span>
+                  <span class="text-sm font-bold text-red-600" id="disp-due">₹0.00</span>
+                </div>
+                <div id="partial-warn-inline" class="hidden text-[11px] font-bold text-red-600 bg-red-50 p-1.5 rounded border border-red-200"></div>
               </div>
             </div>
 
@@ -928,7 +969,11 @@
         mode_cash_lbl: "CASH (नकद)",
         mode_upi_lbl: "UPI (ऑनलाइन)",
         mode_udhaar_lbl: "उधार (Credit)",
-        mode_partial_lbl: "Partial (किस्त)"
+        mode_partial_lbl: "Partial (किस्त)",
+        alert_partial_too_high_inline: "⚠️ यह राशि ₹{final} बिल से ज़्यादा या बराबर है! CASH mode चुनें।",
+        alert_partial_too_high: "⚠️ आंशिक भुगतान (₹{amt}) कुल बिल (₹{final}) से कम होना चाहिए! अगर पूरा या ज़्यादा मिला है तो CASH mode चुनें।",
+        alert_partial_zero: "⚠️ आंशिक भुगतान राशि ₹0 से ज़्यादा होनी चाहिए! अगर कुछ नहीं मिला तो उधारी (UDHAAR) चुनें।",
+        ph_partial: "उदा. 100"
       },
       en: {
         page_title: "Kirana Dukan AI - Smart POS & Stock Manager",
@@ -1104,7 +1149,11 @@
         mode_cash_lbl: "CASH",
         mode_upi_lbl: "UPI",
         mode_udhaar_lbl: "Credit (Udhaar)",
-        mode_partial_lbl: "Partial"
+        mode_partial_lbl: "Partial",
+        alert_partial_too_high_inline: "⚠️ Amount ₹{final} is >= bill total! Use CASH mode instead.",
+        alert_partial_too_high: "⚠️ Partial payment (₹{amt}) must be less than bill total (₹{final})! Use CASH mode if fully paid.",
+        alert_partial_zero: "⚠️ Partial payment must be greater than ₹0! Choose Credit (Udhaar) mode if nothing received.",
+        ph_partial: "e.g. 100"
       }
     };
 
@@ -1330,17 +1379,20 @@
       const changeRow = document.getElementById('change-display-row');
       const dueRow = document.getElementById('due-display-row');
       const lblRecv = document.getElementById('lbl-amount-received');
+      const inpRecv = document.getElementById('inp-amount-received');
 
       if (mode === 'CASH') {
         changeBox.classList.remove('hidden');
         changeRow.classList.remove('hidden');
         dueRow.classList.add('hidden');
         lblRecv.innerText = i18n[currentLang].lbl_tendered;
+        inpRecv.placeholder = i18n[currentLang].ph_tendered || 'उदा. 500';
       } else if (mode === 'PARTIAL') {
         changeBox.classList.remove('hidden');
         changeRow.classList.add('hidden');
         dueRow.classList.remove('hidden');
         lblRecv.innerText = i18n[currentLang].lbl_paid_now;
+        inpRecv.placeholder = i18n[currentLang].ph_partial || 'उदा. 100';
       } else {
         changeBox.classList.add('hidden');
       }
@@ -1352,14 +1404,31 @@
       const subtotal = cart.reduce((acc, it) => acc + (it.quantity * it.selling_price), 0);
       const discount = parseFloat(document.getElementById('cart-discount').value) || 0;
       const finalAmount = Math.max(0, subtotal - discount);
-      const received = parseFloat(document.getElementById('inp-amount-received').value) || 0;
+      const inp = document.getElementById('inp-amount-received');
+      const received = parseFloat(inp.value) || 0;
+      const dueDisplayEl = document.getElementById('disp-due');
+      const warnEl = document.getElementById('partial-warn-inline');
 
       if (currentPaymentMode === 'CASH') {
         const change = Math.max(0, received - finalAmount);
         document.getElementById('disp-change').innerText = '₹' + change.toFixed(2);
+        inp.classList.remove('border-red-500', 'bg-red-50');
+        if (warnEl) warnEl.classList.add('hidden');
       } else if (currentPaymentMode === 'PARTIAL') {
-        const due = Math.max(0, finalAmount - received);
-        document.getElementById('disp-due').innerText = '₹' + due.toFixed(2);
+        if (received >= finalAmount && finalAmount > 0) {
+          inp.classList.add('border-red-500', 'bg-red-50');
+          dueDisplayEl.innerText = '₹0.00';
+          if (warnEl) {
+            const msg = i18n[currentLang].alert_partial_too_high_inline.replace('{final}', finalAmount.toFixed(2));
+            warnEl.innerText = msg;
+            warnEl.classList.remove('hidden');
+          }
+        } else {
+          inp.classList.remove('border-red-500', 'bg-red-50');
+          if (warnEl) warnEl.classList.add('hidden');
+          const due = Math.max(0, finalAmount - received);
+          dueDisplayEl.innerText = '₹' + due.toFixed(2);
+        }
       }
     }
 
@@ -1637,6 +1706,14 @@
         amountReceived = parseFloat(document.getElementById('inp-amount-received').value) || finalAmount;
       } else if (currentPaymentMode === 'PARTIAL') {
         amountReceived = parseFloat(document.getElementById('inp-amount-received').value) || 0;
+        if (amountReceived <= 0) {
+          alert(i18n[currentLang].alert_partial_zero);
+          return;
+        }
+        if (amountReceived >= finalAmount) {
+          alert(i18n[currentLang].alert_partial_too_high.replace('{amt}', amountReceived.toFixed(2)).replace('{final}', finalAmount.toFixed(2)));
+          return;
+        }
       } else if (currentPaymentMode === 'UPI') {
         amountReceived = finalAmount;
       }

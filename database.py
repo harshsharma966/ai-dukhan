@@ -439,8 +439,12 @@ class Database:
             change_amount = 0.0
             due_amount = final_amount
         elif pm == 'PARTIAL':
-            paid_amount = min(recv, final_amount)
-            change_amount = max(0.0, round(recv - final_amount, 2))
+            if recv >= final_amount:
+                raise ValueError(f"Partial payment (₹{recv:.2f}) bill total (₹{final_amount:.2f}) se kam hona chahiye. Poora ya zyada paisa mila ho toh CASH mode chunein.")
+            if recv <= 0:
+                raise ValueError("Partial payment amount 0 se zyada hona chahiye. Agar koi paisa nahi mila toh UDHAAR mode chunein.")
+            paid_amount = recv
+            change_amount = 0.0
             due_amount = max(0.0, round(final_amount - paid_amount, 2))
         else:
             paid_amount = 0.0
