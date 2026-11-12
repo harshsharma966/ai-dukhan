@@ -2640,7 +2640,11 @@
         if (optDue) {
           optDue.disabled = !activeReturnBill.customer_id;
         }
-        document.getElementById('ret-refund-mode').value = 'CASH';
+        if (activeReturnBill.customer_id && (Number(activeReturnBill.due_amount) > 0 || Number(activeReturnBill.customer_current_due) > 0)) {
+          document.getElementById('ret-refund-mode').value = 'DUE_ADJUSTMENT';
+        } else {
+          document.getElementById('ret-refund-mode').value = 'CASH';
+        }
 
         // Render Return Items
         const tbody = document.getElementById('ret-items-tbody');

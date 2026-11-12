@@ -48,9 +48,26 @@ class DailyReports:
                 WHERE DATE(payment_date) = DATE(?);
             """, (report_date,)).fetchone()
 
-            total_cash_in_drawer = row["sales_cash"] + pay_row["recovered_cash"]
-            total_upi_received = row["sales_upi"] + pay_row["recovered_upi"]
-            new_udhaar_given = float(row["new_udhaar"])
+            # Aaj samaan wapas (Returns) kitna hua
+            ret_row = conn.execute("""
+                SELECT 
+                    COALESCE(SUM(CASE WHEN refund_mode = 'CASH' THEN refund_amount ELSE 0 END), 0) AS refund_cash,
+                    COALESCE(SUM(CASE WHEN refund_mode = 'UPI' THEN refund_amount ELSE 0 END), 0) AS refund_upi,
+                    COALESCE(SUM(CASE WHEN refund_mode = 'DUE_ADJUSTMENT' THEN refund_amount ELSE 0 END), 0) AS refund_due_adj,
+                    COALESCE(SUM(refund_amount), 0) AS total_refund
+                FROM sales_returns
+                WHERE DATE(created_at) = DATE(?);
+            """, (report_date,)).fetchone()
+
+            refund_cash = float(ret_row["refund_cash"] or 0)
+            refund_upi = float(ret_row["refund_upi"] or 0)
+            refund_due_adj = float(ret_row["refund_due_adj"] or 0)
+            total_refund = float(ret_row["total_refund"] or 0)
+
+            net_total_sales = max(0.0, round(float(row["total_sales"]) - total_refund, 2))
+            total_cash_in_drawer = max(0.0, round(float(row["sales_cash"]) + float(pay_row["recovered_cash"]) - refund_cash, 2))
+            total_upi_received = max(0.0, round(float(row["sales_upi"]) + float(pay_row["recovered_upi"]) - refund_upi, 2))
+            new_udhaar_given = max(0.0, round(float(row["new_udhaar"]) - refund_due_adj, 2))
             total_recovered = float(pay_row["total_recovered"])
             net_udhaar_today = max(0.0, round(new_udhaar_given - total_recovered, 2))
 
@@ -64,8 +81,10 @@ class DailyReports:
             return {
                 "date": report_date,
                 "total_bills": row["total_bills"],
-                "total_sales": row["total_sales"],
+                "total_sales": net_total_sales,
+                "gross_sales": row["gross_sales"],
                 "total_discount": row["total_discount"],
+                "total_returns": total_refund,
                 "sales_breakdown": {
                     "cash_sales": row["sales_cash"],
                     "upi_sales": row["sales_upi"],
@@ -96,27 +115,38 @@ class DailyReports:
 
         with db.connection() as conn:
             rows = conn.execute("""
+                WITH ret_summary AS (
+                    SELECT sri.sales_item_id, 
+                           SUM(sri.quantity) AS ret_qty, 
+                           SUM(sri.line_total) AS ret_amt
+                    FROM sales_return_items sri
+                    JOIN sales_returns sr ON sr.id = sri.sales_return_id
+                    WHERE DATE(sr.created_at) = DATE(?)
+                    GROUP BY sri.sales_item_id
+                )
                 SELECT 
                     si.product_name,
                     si.unit,
-                    SUM(si.quantity) AS total_qty_sold,
-                    ROUND(SUM(si.line_total), 2) AS total_amount,
-                    ROUND(SUM(si.quantity * p.cost_price), 2) AS total_cost,
-                    ROUND(SUM(si.line_total) - SUM(si.quantity * p.cost_price), 2) AS profit
+                    ROUND(SUM(si.quantity) - COALESCE(SUM(rs.ret_qty), 0), 2) AS total_qty_sold,
+                    ROUND(SUM(si.line_total) - COALESCE(SUM(rs.ret_amt), 0), 2) AS total_amount,
+                    ROUND((SUM(si.quantity) - COALESCE(SUM(rs.ret_qty), 0)) * p.cost_price, 2) AS total_cost,
+                    ROUND((SUM(si.line_total) - COALESCE(SUM(rs.ret_amt), 0)) - ((SUM(si.quantity) - COALESCE(SUM(rs.ret_qty), 0)) * p.cost_price), 2) AS profit
                 FROM sales_items si
                 JOIN sales_bills sb ON sb.id = si.sales_bill_id
                 JOIN products p ON p.id = si.product_id
+                LEFT JOIN ret_summary rs ON rs.sales_item_id = si.id
                 WHERE sb.status = 'CONFIRMED'
                   AND DATE(sb.bill_date) = DATE(?)
                 GROUP BY si.product_id, si.product_name, si.unit
+                HAVING total_qty_sold > 0
                 ORDER BY total_amount DESC;
-            """, (report_date,)).fetchall()
+            """, (report_date, report_date)).fetchall()
 
             return [dict(r) for r in rows]
 
     @staticmethod
     def get_daywise_earnings(limit: int = 15) -> list:
-        """Din-war bikri, lagat aur shuddh munafa (Day-wise Earnings)."""
+        """Din-war bikri, lagat aur shuddh munafa (Day-wise Earnings) deducting returns."""
         with db.connection() as conn:
             rows = conn.execute("""
                 WITH bill_costs AS (
@@ -132,18 +162,29 @@ class DailyReports:
                     JOIN products p ON p.id = si.product_id
                     WHERE sb.status = 'CONFIRMED'
                     GROUP BY sb.id
+                ),
+                daily_returns AS (
+                    SELECT 
+                        DATE(sr.created_at) AS ret_date,
+                        COALESCE(SUM(sr.refund_amount), 0) AS total_refund,
+                        COALESCE(SUM(sri.quantity * p.cost_price), 0) AS ret_cost
+                    FROM sales_returns sr
+                    JOIN sales_return_items sri ON sri.sales_return_id = sr.id
+                    JOIN products p ON p.id = sri.product_id
+                    GROUP BY DATE(sr.created_at)
                 )
                 SELECT 
-                    b_date AS date,
-                    COUNT(id) AS bills_count,
-                    ROUND(SUM(total_amount), 2) AS gross_sales,
-                    ROUND(SUM(discount), 2) AS total_discount,
-                    ROUND(SUM(final_amount), 2) AS net_sales,
-                    ROUND(SUM(bill_cost), 2) AS total_cost,
-                    ROUND(SUM(final_amount) - SUM(bill_cost), 2) AS net_profit
-                FROM bill_costs
-                GROUP BY b_date
-                ORDER BY b_date DESC
+                    bc.b_date AS date,
+                    COUNT(bc.id) AS bills_count,
+                    ROUND(SUM(bc.total_amount), 2) AS gross_sales,
+                    ROUND(SUM(bc.discount), 2) AS total_discount,
+                    ROUND(SUM(bc.final_amount) - COALESCE(dr.total_refund, 0), 2) AS net_sales,
+                    ROUND(SUM(bc.bill_cost) - COALESCE(dr.ret_cost, 0), 2) AS total_cost,
+                    ROUND((SUM(bc.final_amount) - COALESCE(dr.total_refund, 0)) - (SUM(bc.bill_cost) - COALESCE(dr.ret_cost, 0)), 2) AS net_profit
+                FROM bill_costs bc
+                LEFT JOIN daily_returns dr ON dr.ret_date = bc.b_date
+                GROUP BY bc.b_date
+                ORDER BY bc.b_date DESC
                 LIMIT ?;
             """, (limit,)).fetchall()
 
@@ -158,7 +199,7 @@ class DailyReports:
 
     @staticmethod
     def get_monthwise_earnings(limit: int = 12) -> list:
-        """Mahine-war bikri, lagat aur shuddh munafa (Month-wise Earnings)."""
+        """Mahine-war bikri, lagat aur shuddh munafa (Month-wise Earnings) deducting returns."""
         with db.connection() as conn:
             rows = conn.execute("""
                 WITH bill_costs AS (
@@ -174,18 +215,29 @@ class DailyReports:
                     JOIN products p ON p.id = si.product_id
                     WHERE sb.status = 'CONFIRMED'
                     GROUP BY sb.id
+                ),
+                monthly_returns AS (
+                    SELECT 
+                        strftime('%Y-%m', sr.created_at) AS ret_month,
+                        COALESCE(SUM(sr.refund_amount), 0) AS total_refund,
+                        COALESCE(SUM(sri.quantity * p.cost_price), 0) AS ret_cost
+                    FROM sales_returns sr
+                    JOIN sales_return_items sri ON sri.sales_return_id = sr.id
+                    JOIN products p ON p.id = sri.product_id
+                    GROUP BY strftime('%Y-%m', sr.created_at)
                 )
                 SELECT 
-                    b_month AS month_key,
-                    COUNT(id) AS bills_count,
-                    ROUND(SUM(total_amount), 2) AS gross_sales,
-                    ROUND(SUM(discount), 2) AS total_discount,
-                    ROUND(SUM(final_amount), 2) AS net_sales,
-                    ROUND(SUM(bill_cost), 2) AS total_cost,
-                    ROUND(SUM(final_amount) - SUM(bill_cost), 2) AS net_profit
-                FROM bill_costs
-                GROUP BY b_month
-                ORDER BY b_month DESC
+                    bc.b_month AS month_key,
+                    COUNT(bc.id) AS bills_count,
+                    ROUND(SUM(bc.total_amount), 2) AS gross_sales,
+                    ROUND(SUM(bc.discount), 2) AS total_discount,
+                    ROUND(SUM(bc.final_amount) - COALESCE(mr.total_refund, 0), 2) AS net_sales,
+                    ROUND(SUM(bc.bill_cost) - COALESCE(mr.ret_cost, 0), 2) AS total_cost,
+                    ROUND((SUM(bc.final_amount) - COALESCE(mr.total_refund, 0)) - (SUM(bc.bill_cost) - COALESCE(mr.ret_cost, 0)), 2) AS net_profit
+                FROM bill_costs bc
+                LEFT JOIN monthly_returns mr ON mr.ret_month = bc.b_month
+                GROUP BY bc.b_month
+                ORDER BY bc.b_month DESC
                 LIMIT ?;
             """, (limit,)).fetchall()
 
