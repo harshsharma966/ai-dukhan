@@ -89,7 +89,7 @@ class DailyReports:
     def get_items_sold_summary(report_date: str = None) -> list:
         """
         2. Samaan ka Hisab (Stock Summary):
-        Aaj kaun sa samaan kitni quantity me bika.
+        Aaj kaun sa samaan kitni quantity me bika aur usse kitni kamai (profit) hui.
         """
         if not report_date:
             report_date = str(date.today())
@@ -100,16 +100,134 @@ class DailyReports:
                     si.product_name,
                     si.unit,
                     SUM(si.quantity) AS total_qty_sold,
-                    SUM(si.line_total) AS total_amount
+                    ROUND(SUM(si.line_total), 2) AS total_amount,
+                    ROUND(SUM(si.quantity * p.cost_price), 2) AS total_cost,
+                    ROUND(SUM(si.line_total) - SUM(si.quantity * p.cost_price), 2) AS profit
                 FROM sales_items si
                 JOIN sales_bills sb ON sb.id = si.sales_bill_id
+                JOIN products p ON p.id = si.product_id
                 WHERE sb.status = 'CONFIRMED'
                   AND DATE(sb.bill_date) = DATE(?)
                 GROUP BY si.product_id, si.product_name, si.unit
-                ORDER BY total_qty_sold DESC;
+                ORDER BY total_amount DESC;
             """, (report_date,)).fetchall()
 
             return [dict(r) for r in rows]
+
+    @staticmethod
+    def get_daywise_earnings(limit: int = 15) -> list:
+        """Din-war bikri, lagat aur shuddh munafa (Day-wise Earnings)."""
+        with db.connection() as conn:
+            rows = conn.execute("""
+                WITH bill_costs AS (
+                    SELECT 
+                        sb.id,
+                        DATE(sb.bill_date) AS b_date,
+                        sb.total_amount,
+                        sb.discount,
+                        sb.final_amount,
+                        COALESCE(SUM(si.quantity * p.cost_price), 0) AS bill_cost
+                    FROM sales_bills sb
+                    JOIN sales_items si ON si.sales_bill_id = sb.id
+                    JOIN products p ON p.id = si.product_id
+                    WHERE sb.status = 'CONFIRMED'
+                    GROUP BY sb.id
+                )
+                SELECT 
+                    b_date AS date,
+                    COUNT(id) AS bills_count,
+                    ROUND(SUM(total_amount), 2) AS gross_sales,
+                    ROUND(SUM(discount), 2) AS total_discount,
+                    ROUND(SUM(final_amount), 2) AS net_sales,
+                    ROUND(SUM(bill_cost), 2) AS total_cost,
+                    ROUND(SUM(final_amount) - SUM(bill_cost), 2) AS net_profit
+                FROM bill_costs
+                GROUP BY b_date
+                ORDER BY b_date DESC
+                LIMIT ?;
+            """, (limit,)).fetchall()
+
+            result = []
+            for r in rows:
+                d = dict(r)
+                sales = float(d["net_sales"] or 0)
+                profit = float(d["net_profit"] or 0)
+                d["margin_pct"] = round((profit / sales * 100), 1) if sales > 0 else 0.0
+                result.append(d)
+            return result
+
+    @staticmethod
+    def get_monthwise_earnings(limit: int = 12) -> list:
+        """Mahine-war bikri, lagat aur shuddh munafa (Month-wise Earnings)."""
+        with db.connection() as conn:
+            rows = conn.execute("""
+                WITH bill_costs AS (
+                    SELECT 
+                        sb.id,
+                        strftime('%Y-%m', sb.bill_date) AS b_month,
+                        sb.total_amount,
+                        sb.discount,
+                        sb.final_amount,
+                        COALESCE(SUM(si.quantity * p.cost_price), 0) AS bill_cost
+                    FROM sales_bills sb
+                    JOIN sales_items si ON si.sales_bill_id = sb.id
+                    JOIN products p ON p.id = si.product_id
+                    WHERE sb.status = 'CONFIRMED'
+                    GROUP BY sb.id
+                )
+                SELECT 
+                    b_month AS month_key,
+                    COUNT(id) AS bills_count,
+                    ROUND(SUM(total_amount), 2) AS gross_sales,
+                    ROUND(SUM(discount), 2) AS total_discount,
+                    ROUND(SUM(final_amount), 2) AS net_sales,
+                    ROUND(SUM(bill_cost), 2) AS total_cost,
+                    ROUND(SUM(final_amount) - SUM(bill_cost), 2) AS net_profit
+                FROM bill_costs
+                GROUP BY b_month
+                ORDER BY b_month DESC
+                LIMIT ?;
+            """, (limit,)).fetchall()
+
+            result = []
+            for r in rows:
+                d = dict(r)
+                sales = float(d["net_sales"] or 0)
+                profit = float(d["net_profit"] or 0)
+                d["margin_pct"] = round((profit / sales * 100), 1) if sales > 0 else 0.0
+                try:
+                    from datetime import datetime
+                    dt = datetime.strptime(d["month_key"], "%Y-%m")
+                    d["month_label"] = dt.strftime("%B %Y")
+                except Exception:
+                    d["month_label"] = d["month_key"]
+                result.append(d)
+            return result
+
+    @classmethod
+    def get_earnings_summary(cls, report_date: str = None) -> dict:
+        """Aaj ki aur is mahine ki shuddh kamai (Profit Summary)."""
+        if not report_date:
+            report_date = str(date.today())
+        month_key = report_date[:7]
+
+        day_list = cls.get_daywise_earnings(limit=60)
+        month_list = cls.get_monthwise_earnings(limit=24)
+
+        today_data = next((d for d in day_list if d["date"] == report_date), {
+            "date": report_date, "bills_count": 0, "gross_sales": 0.0, "total_discount": 0.0,
+            "net_sales": 0.0, "total_cost": 0.0, "net_profit": 0.0, "margin_pct": 0.0
+        })
+
+        month_data = next((m for m in month_list if m["month_key"] == month_key), {
+            "month_key": month_key, "bills_count": 0, "gross_sales": 0.0, "total_discount": 0.0,
+            "net_sales": 0.0, "total_cost": 0.0, "net_profit": 0.0, "margin_pct": 0.0, "month_label": month_key
+        })
+
+        return {
+            "today": today_data,
+            "month": month_data
+        }
 
     @staticmethod
     def get_reorder_list() -> dict:
@@ -129,9 +247,15 @@ class DailyReports:
 
     @classmethod
     def get_full_closing_report(cls, report_date: str = None) -> dict:
-        """Teeno reports ek sath lata hai."""
+        """Sabhi reports ek sath lata hai (Financial, Earnings, Day-wise, Month-wise, Items, Reorder)."""
+        if not report_date:
+            report_date = str(date.today())
+
         return {
             "financial": cls.get_financial_summary(report_date),
+            "earnings": cls.get_earnings_summary(report_date),
+            "daywise_earnings": cls.get_daywise_earnings(limit=15),
+            "monthwise_earnings": cls.get_monthwise_earnings(limit=12),
             "items_sold": cls.get_items_sold_summary(report_date),
             "reorder_list": cls.get_reorder_list()
         }

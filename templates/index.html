@@ -422,37 +422,43 @@
           </div>
         </div>
 
-        <!-- 4 Stat Cards -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          <div class="bg-[#F0FDF4] p-4 rounded-xl border border-[#DCFCE7]">
+        <!-- 5 Stat Cards (Responsive Grid) -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 mb-6">
+          <div class="bg-[#F0FDF4] p-4 rounded-xl border border-[#DCFCE7] shadow-xs">
             <span class="text-xs font-bold text-[#15803D] block" data-i18n="stat_total_sales">कुल बिक्री (Total Sales)</span>
             <span class="text-xl font-extrabold text-[#14532D]" id="rep-total-sales">₹0.00</span>
             <span class="text-[11px] text-[#16A34A] block mt-1 font-semibold" id="rep-bill-count">0 बिल</span>
           </div>
 
-          <div class="bg-[#FFFBEB] p-4 rounded-xl border border-[#FDE68A]">
+          <div class="bg-[#FFFBEB] p-4 rounded-xl border border-[#FDE68A] shadow-xs">
             <span class="text-xs font-bold text-[#B45309] block" data-i18n="stat_cash_drawer">गल्ले में कैश (Cash Drawer)</span>
             <span class="text-xl font-extrabold text-[#92400E]" id="rep-cash-drawer">₹0.00</span>
             <span class="text-[11px] text-[#D97706] block mt-1 font-semibold" data-i18n="stat_cash_sub">बिक्री + वसूली</span>
           </div>
 
-          <div class="bg-teal-50 p-4 rounded-xl border border-teal-100">
+          <div class="bg-teal-50 p-4 rounded-xl border border-teal-100 shadow-xs">
             <span class="text-xs font-bold text-teal-800 block" data-i18n="stat_upi_bank">बैंक में UPI (Online)</span>
             <span class="text-xl font-extrabold text-teal-950" id="rep-upi-bank">₹0.00</span>
             <span class="text-[11px] text-teal-700 block mt-1 font-semibold" data-i18n="stat_upi_sub">ऑनलाइन प्राप्त</span>
           </div>
 
-          <div class="bg-amber-50/60 p-4 rounded-xl border border-amber-200">
+          <div class="bg-amber-50/60 p-4 rounded-xl border border-amber-200 shadow-xs">
             <span class="text-xs font-bold text-amber-900 block" data-i18n="stat_new_udhaar">बाकी उधार (Market Udhaar)</span>
             <span class="text-xl font-extrabold text-amber-950" id="rep-new-udhaar">₹0.00</span>
             <span class="text-[11px] text-amber-700 block mt-1 font-semibold" id="rep-udhaar-sub" data-i18n="stat_udhaar_sub">आज बाकी</span>
           </div>
+
+          <div class="bg-emerald-50/80 p-4 rounded-xl border border-emerald-300 shadow-xs col-span-2 md:col-span-1">
+            <span class="text-xs font-bold text-emerald-800 block" data-i18n="stat_earnings">💰 आज की कमाई (Profit)</span>
+            <span class="text-xl font-extrabold text-emerald-950" id="rep-today-earnings">₹0.00</span>
+            <span class="text-[11px] text-emerald-700 block mt-1 font-semibold" id="rep-month-earnings">महीने की: ₹0.00</span>
+          </div>
         </div>
 
         <!-- Details Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <!-- Items Sold Table -->
-          <div class="border border-[#E7E5E4] rounded-xl p-4 bg-white">
+          <div class="border border-[#E7E5E4] rounded-xl p-4 bg-white shadow-xs">
             <h3 class="font-bold text-xs uppercase text-[#78716C] mb-3" data-i18n="title_items_sold">आज बिका हुआ सामान (Items Sold Today)</h3>
             <div class="overflow-x-auto max-h-[300px]">
               <table class="w-full text-left text-xs">
@@ -460,7 +466,8 @@
                   <tr>
                     <th class="p-2" data-i18n="th_product">सामान</th>
                     <th class="p-2" data-i18n="lbl_qty">मात्रा</th>
-                    <th class="p-2 text-right" data-i18n="rcpt_amount">कुल रकम</th>
+                    <th class="p-2 text-right" data-i18n="rcpt_amount">बिक्री</th>
+                    <th class="p-2 text-right text-emerald-800" data-i18n="th_profit">कमाई (Profit)</th>
                   </tr>
                 </thead>
                 <tbody id="rep-items-tbody" class="divide-y divide-[#E7E5E4]">
@@ -471,11 +478,64 @@
           </div>
 
           <!-- Reorder List (Low/Out of Stock) -->
-          <div class="border border-[#E7E5E4] rounded-xl p-4 bg-white">
+          <div class="border border-[#E7E5E4] rounded-xl p-4 bg-white shadow-xs">
             <h3 class="font-bold text-xs uppercase text-[#78716C] mb-3" data-i18n="title_reorder">कल क्या माल मंगाना है (Re-order List)</h3>
             <div id="rep-reorder-container" class="space-y-2 max-h-[300px] overflow-y-auto">
               <!-- Loaded dynamically -->
             </div>
+          </div>
+        </div>
+
+        <!-- Day-wise & Month-wise Earnings Breakdown Section -->
+        <div class="border border-[#E7E5E4] rounded-xl p-4 bg-white shadow-xs mb-6">
+          <div class="flex flex-wrap justify-between items-center mb-3 gap-2 pb-2 border-b border-[#E7E5E4]">
+            <div>
+              <h3 class="font-bold text-sm text-[#1C1917] flex items-center gap-1.5">
+                <span>📈</span> <span data-i18n="title_earnings_report">कमाई और मुनाफा रिपोर्ट (Earnings: Day-wise & Month-wise)</span>
+              </h3>
+              <p class="text-[11px] text-[#78716C]" data-i18n="sub_earnings_report">बिक्री, लागत (Cost Price) और शुद्ध मुनाफे का दिन-वार और महीने-वार हिसाब</p>
+            </div>
+            <!-- Switch Pills: Day-wise / Month-wise -->
+            <div class="flex bg-[#FAFAF7] p-0.5 rounded-lg border border-[#E7E5E4] text-xs font-bold">
+              <button type="button" id="btn-earn-daywise" onclick="switchEarningsView('daywise')" class="px-3 py-1 rounded-md bg-[#15803D] text-white shadow-xs transition" data-i18n="btn_earn_daywise">📅 दिन-वार (Day-wise)</button>
+              <button type="button" id="btn-earn-monthwise" onclick="switchEarningsView('monthwise')" class="px-3 py-1 rounded-md text-[#78716C] hover:text-[#1C1917] transition" data-i18n="btn_earn_monthwise">📆 महीने-वार (Month-wise)</button>
+            </div>
+          </div>
+
+          <!-- Day-wise Earnings Table -->
+          <div id="view-earn-daywise" class="overflow-x-auto max-h-[320px]">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-[#FAFAF7] text-[#78716C] border-b border-[#E7E5E4] sticky top-0">
+                <tr>
+                  <th class="p-2.5 font-bold" data-i18n="th_date">तारीख (Date)</th>
+                  <th class="p-2.5 font-bold text-center" data-i18n="th_bills">बिल</th>
+                  <th class="p-2.5 font-bold text-right" data-i18n="th_sales">कुल बिक्री</th>
+                  <th class="p-2.5 font-bold text-right" data-i18n="th_cost">लागत (Cost)</th>
+                  <th class="p-2.5 font-bold text-right" data-i18n="th_discount">छूट</th>
+                  <th class="p-2.5 font-bold text-right text-emerald-800" data-i18n="th_net_profit">शुद्ध कमाई (Profit)</th>
+                  <th class="p-2.5 font-bold text-right text-emerald-700" data-i18n="th_margin">मार्जिन %</th>
+                </tr>
+              </thead>
+              <tbody id="earn-daywise-tbody" class="divide-y divide-[#E7E5E4]"></tbody>
+            </table>
+          </div>
+
+          <!-- Month-wise Earnings Table (Hidden by default) -->
+          <div id="view-earn-monthwise" class="hidden overflow-x-auto max-h-[320px]">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-[#FAFAF7] text-[#78716C] border-b border-[#E7E5E4] sticky top-0">
+                <tr>
+                  <th class="p-2.5 font-bold" data-i18n="th_month">महीना (Month)</th>
+                  <th class="p-2.5 font-bold text-center" data-i18n="th_bills">कुल बिल</th>
+                  <th class="p-2.5 font-bold text-right" data-i18n="th_sales">कुल बिक्री</th>
+                  <th class="p-2.5 font-bold text-right" data-i18n="th_cost">कुल लागत (Cost)</th>
+                  <th class="p-2.5 font-bold text-right" data-i18n="th_discount">छूट</th>
+                  <th class="p-2.5 font-bold text-right text-emerald-800" data-i18n="th_net_profit">शुद्ध कमाई (Profit)</th>
+                  <th class="p-2.5 font-bold text-right text-emerald-700" data-i18n="th_margin">मार्जिन %</th>
+                </tr>
+              </thead>
+              <tbody id="earn-monthwise-tbody" class="divide-y divide-[#E7E5E4]"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -771,8 +831,22 @@
         stat_cash_sub: "बिक्री + वसूली",
         stat_upi_bank: "बैंक में UPI (Online)",
         stat_upi_sub: "ऑनलाइन प्राप्त",
-        stat_new_udhaar: "नया उधार दिया (Udhaar)",
+        stat_new_udhaar: "बाकी उधार (Market Udhaar)",
         stat_udhaar_sub: "आज बाकी",
+        stat_earnings: "💰 आज की कमाई (Profit)",
+        title_earnings_report: "कमाई और मुनाफा रिपोर्ट (Earnings: Day-wise & Month-wise)",
+        sub_earnings_report: "बिक्री, लागत (Cost Price) और शुद्ध मुनाफे का दिन-वार और महीने-वार हिसाब",
+        btn_earn_daywise: "📅 दिन-वार (Day-wise)",
+        btn_earn_monthwise: "📆 महीने-वार (Month-wise)",
+        th_profit: "कमाई (Profit)",
+        th_date: "तारीख (Date)",
+        th_bills: "बिल",
+        th_sales: "कुल बिक्री",
+        th_cost: "लागत (Cost)",
+        th_discount: "छूट",
+        th_net_profit: "शुद्ध कमाई (Profit)",
+        th_margin: "मार्जिन %",
+        no_earnings_data: "कोई कमाई का डेटा उपलब्ध नहीं है",
         title_items_sold: "आज बिका हुआ सामान (Items Sold Today)",
         title_reorder: "कल क्या माल मंगाना है (Re-order List)",
         modal_new_cust_title: "नया ग्राहक जोड़ें",
@@ -933,8 +1007,22 @@
         stat_cash_sub: "Sales + Recoveries",
         stat_upi_bank: "UPI in Bank",
         stat_upi_sub: "Online Received",
-        stat_new_udhaar: "New Credit Given",
+        stat_new_udhaar: "Remaining Credit (Udhaar)",
         stat_udhaar_sub: "Pending Today",
+        stat_earnings: "💰 Today's Earnings (Profit)",
+        title_earnings_report: "Earnings & Profit Report (Day-wise & Month-wise)",
+        sub_earnings_report: "Sales, Cost Price and Net Profit breakdown by day and month",
+        btn_earn_daywise: "📅 Day-wise",
+        btn_earn_monthwise: "📆 Month-wise",
+        th_profit: "Profit",
+        th_date: "Date",
+        th_bills: "Bills",
+        th_sales: "Total Sales",
+        th_cost: "Cost Price",
+        th_discount: "Discount",
+        th_net_profit: "Net Profit",
+        th_margin: "Margin %",
+        no_earnings_data: "No earnings data available",
         title_items_sold: "Items Sold Today",
         title_reorder: "Re-order List (Tomorrow's Purchase)",
         modal_new_cust_title: "Add New Customer",
@@ -1929,21 +2017,90 @@
           }
         }
 
-        // Items Sold
+        // Earnings Summary (Today & Month)
+        if (rep.earnings) {
+          const todayEarn = Number(rep.earnings.today ? rep.earnings.today.net_profit : 0) || 0;
+          const todayMargin = Number(rep.earnings.today ? rep.earnings.today.margin_pct : 0) || 0;
+          const monthEarn = Number(rep.earnings.month ? rep.earnings.month.net_profit : 0) || 0;
+
+          document.getElementById('rep-today-earnings').innerText = '₹' + todayEarn.toFixed(2);
+          const monthEl = document.getElementById('rep-month-earnings');
+          if (monthEl) {
+            monthEl.innerText = `${currentLang === 'hi' ? 'महीने की' : 'Month'}: ₹${monthEarn.toFixed(0)} (${todayMargin.toFixed(0)}% margin)`;
+          }
+        }
+
+        // Items Sold (with Profit Column)
         const tbody = document.getElementById('rep-items-tbody');
         tbody.innerHTML = '';
         if (!rep.items_sold.length) {
-          tbody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-[#A8A29E]">${i18n[currentLang].today_no_sales}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-[#A8A29E]">${i18n[currentLang].today_no_sales}</td></tr>`;
         } else {
           rep.items_sold.forEach(it => {
+            const profitVal = Number(it.profit !== undefined ? it.profit : (it.total_amount - (it.total_cost || 0))) || 0;
+            const profitBadge = profitVal >= 0 
+              ? `<span class="text-[#15803D] font-bold">+₹${profitVal.toFixed(1)}</span>`
+              : `<span class="text-red-600 font-bold">-₹${Math.abs(profitVal).toFixed(1)}</span>`;
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
               <td class="p-2 font-bold text-[#1C1917]">${it.product_name}</td>
               <td class="p-2 font-semibold text-[#78716C]">${it.total_qty_sold} ${it.unit}</td>
-              <td class="p-2 text-right font-extrabold text-[#1C1917]">₹${it.total_amount.toFixed(2)}</td>
+              <td class="p-2 text-right font-extrabold text-[#1C1917]">₹${Number(it.total_amount).toFixed(2)}</td>
+              <td class="p-2 text-right font-extrabold">${profitBadge}</td>
             `;
             tbody.appendChild(tr);
           });
+        }
+
+        // Day-wise Earnings Table
+        const dayTbody = document.getElementById('earn-daywise-tbody');
+        if (dayTbody) {
+          dayTbody.innerHTML = '';
+          const dayList = rep.daywise_earnings || [];
+          if (!dayList.length) {
+            dayTbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-[#A8A29E]">${i18n[currentLang].no_earnings_data}</td></tr>`;
+          } else {
+            dayList.forEach(d => {
+              const tr = document.createElement('tr');
+              const profitClass = d.net_profit >= 0 ? 'text-[#15803D] font-extrabold' : 'text-red-600 font-extrabold';
+              tr.innerHTML = `
+                <td class="p-2.5 font-bold text-[#1C1917]">${d.date}</td>
+                <td class="p-2.5 text-center font-medium">${d.bills_count}</td>
+                <td class="p-2.5 text-right font-semibold text-[#1C1917]">₹${Number(d.net_sales).toFixed(2)}</td>
+                <td class="p-2.5 text-right font-mono text-[#78716C]">₹${Number(d.total_cost).toFixed(2)}</td>
+                <td class="p-2.5 text-right font-mono text-amber-700">₹${Number(d.total_discount).toFixed(2)}</td>
+                <td class="p-2.5 text-right ${profitClass}">+₹${Number(d.net_profit).toFixed(2)}</td>
+                <td class="p-2.5 text-right font-bold text-[#15803D]">${d.margin_pct}%</td>
+              `;
+              dayTbody.appendChild(tr);
+            });
+          }
+        }
+
+        // Month-wise Earnings Table
+        const monthTbody = document.getElementById('earn-monthwise-tbody');
+        if (monthTbody) {
+          monthTbody.innerHTML = '';
+          const monthList = rep.monthwise_earnings || [];
+          if (!monthList.length) {
+            monthTbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-[#A8A29E]">${i18n[currentLang].no_earnings_data}</td></tr>`;
+          } else {
+            monthList.forEach(m => {
+              const tr = document.createElement('tr');
+              const profitClass = m.net_profit >= 0 ? 'text-[#15803D] font-extrabold' : 'text-red-600 font-extrabold';
+              tr.innerHTML = `
+                <td class="p-2.5 font-bold text-[#1C1917]">${m.month_label || m.month_key}</td>
+                <td class="p-2.5 text-center font-medium">${m.bills_count}</td>
+                <td class="p-2.5 text-right font-semibold text-[#1C1917]">₹${Number(m.net_sales).toFixed(2)}</td>
+                <td class="p-2.5 text-right font-mono text-[#78716C]">₹${Number(m.total_cost).toFixed(2)}</td>
+                <td class="p-2.5 text-right font-mono text-amber-700">₹${Number(m.total_discount).toFixed(2)}</td>
+                <td class="p-2.5 text-right ${profitClass}">+₹${Number(m.net_profit).toFixed(2)}</td>
+                <td class="p-2.5 text-right font-bold text-[#15803D]">${m.margin_pct}%</td>
+              `;
+              monthTbody.appendChild(tr);
+            });
+          }
         }
 
         // Reorder list
@@ -1969,6 +2126,27 @@
           });
         }
       } catch (e) { console.error(e); }
+    }
+
+    function switchEarningsView(mode) {
+      const dayView = document.getElementById('view-earn-daywise');
+      const monthView = document.getElementById('view-earn-monthwise');
+      const dayBtn = document.getElementById('btn-earn-daywise');
+      const monthBtn = document.getElementById('btn-earn-monthwise');
+
+      if (!dayView || !monthView) return;
+
+      if (mode === 'daywise') {
+        dayView.classList.remove('hidden');
+        monthView.classList.add('hidden');
+        dayBtn.className = 'px-3 py-1 rounded-md bg-[#15803D] text-white shadow-xs transition';
+        monthBtn.className = 'px-3 py-1 rounded-md text-[#78716C] hover:text-[#1C1917] transition';
+      } else {
+        dayView.classList.add('hidden');
+        monthView.classList.remove('hidden');
+        monthBtn.className = 'px-3 py-1 rounded-md bg-[#15803D] text-white shadow-xs transition';
+        dayBtn.className = 'px-3 py-1 rounded-md text-[#78716C] hover:text-[#1C1917] transition';
+      }
     }
 
     // Init on page load
