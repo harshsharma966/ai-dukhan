@@ -68,6 +68,16 @@ class SalesManager:
         return db.get_sales_bill(sales_bill_id)
 
     @staticmethod
+    def get_bills(query: str = None, date: str = None, status: str = None, limit: int = 100) -> list:
+        """Puraane bills search aur filter karta hai."""
+        return db.get_sales_bills(query=query, date=date, status=status, limit=limit)
+
+    @staticmethod
+    def get_bill_details(sales_bill_id: int) -> dict:
+        """Bill ki poori detail aur return eligibility lata hai."""
+        return db.get_sales_bill_details(sales_bill_id)
+
+    @staticmethod
     def confirm_sale(sales_bill_id: int) -> bool:
         """
         Atomic Confirmation (Stock OUT):

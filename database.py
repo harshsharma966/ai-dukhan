@@ -485,6 +485,71 @@ class Database:
             res["items"] = [dict(it) for it in items]
             return res
 
+    def get_sales_bills(self, query=None, date=None, status=None, limit=100):
+        """
+        Sales bills ki list lata hai search, date aur status filters ke sath.
+        """
+        with self.connection() as conn:
+            sql = """
+                SELECT sb.*, 
+                       c.name AS customer_name, 
+                       c.mobile AS customer_mobile,
+                       COUNT(si.id) AS item_count,
+                       COALESCE((SELECT COUNT(*) FROM sales_returns sr WHERE sr.sales_bill_id = sb.id), 0) AS returns_count
+                FROM sales_bills sb
+                LEFT JOIN customers c ON c.id = sb.customer_id
+                LEFT JOIN sales_items si ON si.sales_bill_id = sb.id
+                WHERE 1=1
+            """
+            params = []
+            if date:
+                sql += " AND DATE(sb.bill_date) = DATE(?)"
+                params.append(date)
+            if status and status != 'ALL':
+                sql += " AND sb.status = ?"
+                params.append(status)
+            if query and query.strip():
+                q_like = f"%{query.strip()}%"
+                sql += " AND (sb.bill_number LIKE ? OR c.name LIKE ? OR c.mobile LIKE ?)"
+                params.extend([q_like, q_like, q_like])
+            
+            sql += " GROUP BY sb.id ORDER BY sb.id DESC LIMIT ?"
+            params.append(limit)
+            
+            rows = conn.execute(sql, params).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_sales_bill_details(self, sales_bill_id):
+        """
+        Bill ki poori detail items aur return status (kitna wapas ho chuka hai) ke sath lata hai.
+        """
+        with self.connection() as conn:
+            bill = conn.execute("""
+                SELECT sb.*, c.name AS customer_name, c.mobile AS customer_mobile, c.current_due AS customer_current_due
+                FROM sales_bills sb
+                LEFT JOIN customers c ON c.id=sb.customer_id
+                WHERE sb.id=?
+            """, (sales_bill_id,)).fetchone()
+            if not bill:
+                return None
+
+            items = conn.execute("""
+                SELECT si.*,
+                       COALESCE((SELECT SUM(sri.quantity) FROM sales_return_items sri WHERE sri.sales_item_id = si.id), 0) AS returned_quantity
+                FROM sales_items si
+                WHERE si.sales_bill_id=?
+                ORDER BY si.id
+            """, (sales_bill_id,)).fetchall()
+
+            res = dict(bill)
+            res["subtotal"] = float(bill["total_amount"])
+            res["items"] = []
+            for it in items:
+                d = dict(it)
+                d["available_return_qty"] = max(0.0, round(float(d["quantity"]) - float(d["returned_quantity"]), 2))
+                res["items"].append(d)
+            return res
+
     def confirm_sale(self, sales_bill_id):
         """
         Atomic operation:

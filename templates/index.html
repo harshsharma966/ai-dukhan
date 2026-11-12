@@ -136,6 +136,9 @@
           <button onclick="switchTab('khata')" id="tab-khata" class="tab-btn px-3 py-2 text-[#78716C] hover:text-[#15803D] flex items-center gap-1.5 transition">
             <i class="fa-solid fa-book-bookmark"></i> <span data-i18n="tab_khata">उधारी खाता (Khata)</span>
           </button>
+          <button onclick="switchTab('history')" id="tab-history" class="tab-btn px-3 py-2 text-[#78716C] hover:text-[#15803D] flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-receipt"></i> <span data-i18n="tab_history">बिल इतिहास (Bills)</span>
+          </button>
           <button onclick="switchTab('report')" id="tab-report" class="tab-btn px-3 py-2 text-[#78716C] hover:text-[#15803D] flex items-center gap-1.5 transition">
             <i class="fa-solid fa-chart-line"></i> <span data-i18n="tab_report">दैनिक रिपोर्ट (Closing)</span>
           </button>
@@ -582,6 +585,77 @@
       </div>
     </section>
 
+    <!-- ======================================================== -->
+    <!-- TAB 5: BILL HISTORY & RETURNS (MODULE 3: POST-SALE) -->
+    <!-- ======================================================== -->
+    <section id="view-history" class="tab-view hidden space-y-4">
+      <!-- Title & Search Card -->
+      <div class="bg-white p-4 rounded-2xl border border-[#E7E5E4] shadow-sm space-y-3">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-[#E7E5E4] pb-3">
+          <div>
+            <h2 class="text-base font-extrabold text-[#1C1917] flex items-center gap-2">
+              <span data-i18n="history_title">📜 बिल इतिहास और सामान वापसी (Bill History & Returns)</span>
+            </h2>
+            <p class="text-xs text-[#78716C]" data-i18n="history_sub">पुराने बिल खोजें, दोबारा प्रिंट करें, सामान वापसी (Return) या बिल रद्द करें</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-[#78716C] bg-[#FAFAF7] px-3 py-1.5 rounded-lg border border-[#E7E5E4]">
+              <span data-i18n="lbl_total_bills_found">कुल बिल:</span> <b class="text-[#1C1917]" id="history-total-count">0</b> | <span data-i18n="lbl_total_value">योग:</span> <b class="text-[#15803D]" id="history-total-amount">₹0.00</b>
+            </span>
+            <button onclick="loadBillsHistory()" class="px-3 py-1.5 bg-[#FAFAF7] hover:bg-[#E7E5E4] text-[#1C1917] rounded-lg text-xs font-bold border border-[#E7E5E4] transition flex items-center gap-1">
+              <i class="fa-solid fa-rotate-right"></i> <span data-i18n="btn_refresh">रिफ्रेश</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs">
+          <!-- Live Search Input (6 Cols) -->
+          <div class="md:col-span-6 relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-[#A8A29E]"></i>
+            <input type="text" id="inp-history-search" oninput="debounceHistorySearch()" placeholder="बिल नंबर, ग्राहक का नाम या मोबाइल नंबर खोजें..." data-i18n-ph="ph_history_search" class="w-full pl-9 pr-3 py-2 rounded-xl border border-[#E7E5E4] focus:outline-none focus:border-[#15803D] text-xs">
+          </div>
+
+          <!-- Date Filter (3 Cols) -->
+          <div class="md:col-span-3 flex items-center gap-1.5">
+            <input type="date" id="inp-history-date" onchange="loadBillsHistory()" class="w-full p-2 rounded-xl border border-[#E7E5E4] focus:outline-none focus:border-[#15803D] text-xs bg-white">
+            <button onclick="clearHistoryDate()" title="Show All Dates" data-i18n="btn_all_dates" class="px-2.5 py-2 bg-[#FAFAF7] hover:bg-[#E7E5E4] border border-[#E7E5E4] rounded-xl text-[11px] font-bold text-[#78716C] whitespace-nowrap">सभी</button>
+          </div>
+
+          <!-- Status Filter (3 Cols) -->
+          <div class="md:col-span-3">
+            <select id="sel-history-status" onchange="loadBillsHistory()" class="w-full p-2 rounded-xl border border-[#E7E5E4] focus:outline-none focus:border-[#15803D] text-xs bg-white font-medium">
+              <option value="ALL" data-i18n="opt_all_status">सभी स्टेटस (All)</option>
+              <option value="CONFIRMED" data-i18n="opt_confirmed">✅ पक्के बिल (Confirmed)</option>
+              <option value="CANCELLED" data-i18n="opt_cancelled">❌ रद्द बिल (Cancelled)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bills List Table -->
+      <div class="bg-white rounded-2xl border border-[#E7E5E4] shadow-sm overflow-hidden">
+        <div class="overflow-x-auto max-h-[600px]">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-[#FAFAF7] text-[#78716C] border-b border-[#E7E5E4] sticky top-0 z-10">
+              <tr>
+                <th class="p-3 font-bold" data-i18n="th_bill_no_time">बिल नं. व समय</th>
+                <th class="p-3 font-bold" data-i18n="th_cust">ग्राहक (Customer)</th>
+                <th class="p-3 font-bold text-center" data-i18n="th_items_count">सामान</th>
+                <th class="p-3 font-bold text-right" data-i18n="th_total_amt">कुल बिल (₹)</th>
+                <th class="p-3 font-bold text-center" data-i18n="th_pay_mode">भुगतान मोड</th>
+                <th class="p-3 font-bold text-center" data-i18n="th_status">स्थिति</th>
+                <th class="p-3 font-bold text-right" data-i18n="th_bill_action">कार्रवाई (Actions)</th>
+              </tr>
+            </thead>
+            <tbody id="history-bills-tbody" class="divide-y divide-[#E7E5E4]">
+              <!-- Filled via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- MODAL: NEW CUSTOMER -->
@@ -636,6 +710,78 @@
       <div class="flex justify-end gap-2 pt-2">
         <button onclick="closeModal('modal-settle-udhaar')" data-i18n="btn_cancel" class="px-3 py-1.5 rounded-lg text-xs text-[#78716C] hover:bg-[#FAFAF7]">रद्द करें</button>
         <button onclick="submitUdhaarSettlement()" data-i18n="btn_submit_deposit" class="px-4 py-2 rounded-lg text-xs bg-[#15803D] hover:bg-[#166534] text-white font-bold transition">जमा करें</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: PRODUCT RETURN -->
+  <div id="modal-return-items" class="hidden fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl border border-[#E7E5E4] max-h-[90vh] flex flex-col justify-between">
+      <div>
+        <div class="flex justify-between items-start border-b border-[#E7E5E4] pb-3 mb-3">
+          <div>
+            <h3 class="font-extrabold text-[#1C1917] text-base flex items-center gap-2">
+              <i class="fa-solid fa-rotate-left text-amber-600"></i>
+              <span data-i18n="modal_return_title">सामान वापसी (Product Return)</span>
+            </h3>
+            <p class="text-xs text-[#78716C]">
+              <span id="ret-bill-number" class="font-mono font-bold text-[#1C1917]">-</span> | <span id="ret-cust-name">-</span>
+            </p>
+          </div>
+          <button onclick="closeModal('modal-return-items')" class="text-[#A8A29E] hover:text-[#1C1917] text-lg font-bold">✕</button>
+        </div>
+
+        <p class="text-xs text-[#78716C] mb-2" data-i18n="modal_return_help">जो सामान वापस लेना है उसकी मात्रा (Return Qty) दर्ज करें। स्टॉक तुरंत दुकान में वापस जुड़ जाएगा।</p>
+
+        <!-- Items Table -->
+        <div class="overflow-x-auto border border-[#E7E5E4] rounded-xl max-h-[260px] mb-4">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-[#FAFAF7] text-[#78716C] border-b border-[#E7E5E4] sticky top-0">
+              <tr>
+                <th class="py-2 px-3 font-bold" data-i18n="th_ret_item">सामान</th>
+                <th class="py-2 px-2 text-center font-bold" data-i18n="th_ret_sold">बिका हुआ</th>
+                <th class="py-2 px-2 text-center font-bold" data-i18n="th_ret_already">पहले वापसी</th>
+                <th class="py-2 px-2 text-center font-bold text-[#15803D]" data-i18n="th_ret_avail">वापसी योग्य</th>
+                <th class="py-2 px-3 text-center font-bold text-amber-700" data-i18n="th_ret_qty">वापस मात्रा *</th>
+                <th class="py-2 px-2 text-right font-bold" data-i18n="th_ret_price">भाव (₹)</th>
+                <th class="py-2 px-3 text-right font-bold text-red-600" data-i18n="th_ret_total">रिफंड रकम (₹)</th>
+              </tr>
+            </thead>
+            <tbody id="ret-items-tbody" class="divide-y divide-[#E7E5E4]">
+              <!-- Items loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Refund Summary & Options -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#FAFAF7] p-3.5 rounded-xl border border-[#E7E5E4] text-xs">
+          <div>
+            <label class="block font-bold text-[#1C1917] mb-1" data-i18n="lbl_refund_mode">रिफंड का तरीका (Refund Mode) *</label>
+            <select id="ret-refund-mode" class="w-full p-2 rounded-lg border border-[#E7E5E4] bg-white text-xs font-semibold focus:outline-none focus:border-[#15803D]">
+              <option value="CASH" data-i18n="opt_refund_cash">💵 Cash (ग्राहक को नकद वापस करें)</option>
+              <option value="UPI" data-i18n="opt_refund_upi">📱 UPI (ऑनलाइन रिफंड)</option>
+              <option value="DUE_ADJUSTMENT" id="opt-due-adj" data-i18n="opt_refund_due">📒 Due Adjustment (उधारी खाते से काटें)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-[#1C1917] mb-1" data-i18n="lbl_return_reason">वापसी का कारण (Reason)</label>
+            <input type="text" id="ret-reason" placeholder="उदा. खराब माल / ज़रूरत नहीं थी" data-i18n-ph="ph_return_reason" class="w-full p-2 rounded-lg border border-[#E7E5E4] bg-white text-xs focus:outline-none focus:border-[#15803D]">
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center mt-3 pt-2 border-t border-[#E7E5E4]">
+          <span class="text-xs font-bold text-[#78716C]" data-i18n="total_refund_lbl">कुल रिफंड राशि:</span>
+          <span class="text-xl font-extrabold text-red-600" id="ret-total-refund">₹0.00</span>
+        </div>
+      </div>
+
+      <input type="hidden" id="ret-sales-bill-id">
+
+      <div class="flex gap-2 pt-3 border-t border-[#E7E5E4]">
+        <button onclick="closeModal('modal-return-items')" data-i18n="btn_cancel" class="flex-1 py-2 bg-[#FAFAF7] hover:bg-[#E7E5E4] text-[#1C1917] rounded-lg text-xs font-bold border border-[#E7E5E4] transition">रद्द करें</button>
+        <button onclick="submitProductReturn()" id="btn-submit-return" class="flex-1 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition">
+          <i class="fa-solid fa-rotate-left"></i> <span data-i18n="btn_confirm_return">वापसी दर्ज करें (Confirm Return)</span>
+        </button>
       </div>
     </div>
   </div>
@@ -973,7 +1119,52 @@
         alert_partial_too_high_inline: "⚠️ यह राशि ₹{final} बिल से ज़्यादा या बराबर है! CASH mode चुनें।",
         alert_partial_too_high: "⚠️ आंशिक भुगतान (₹{amt}) कुल बिल (₹{final}) से कम होना चाहिए! अगर पूरा या ज़्यादा मिला है तो CASH mode चुनें।",
         alert_partial_zero: "⚠️ आंशिक भुगतान राशि ₹0 से ज़्यादा होनी चाहिए! अगर कुछ नहीं मिला तो उधारी (UDHAAR) चुनें।",
-        ph_partial: "उदा. 100"
+        ph_partial: "उदा. 100",
+        tab_history: "बिल इतिहास (Bills)",
+        history_title: "📜 बिल इतिहास और सामान वापसी (Bill History & Returns)",
+        history_sub: "पुराने बिल खोजें, दोबारा प्रिंट करें, सामान वापसी (Return) या बिल रद्द करें",
+        lbl_total_bills_found: "कुल बिल:",
+        lbl_total_value: "योग:",
+        ph_history_search: "बिल नंबर, ग्राहक का नाम या मोबाइल नंबर खोजें...",
+        btn_all_dates: "सभी",
+        opt_all_status: "सभी स्टेटस (All)",
+        opt_confirmed: "✅ पक्के बिल (Confirmed)",
+        opt_cancelled: "❌ रद्द बिल (Cancelled)",
+        th_bill_no_time: "बिल नं. व समय",
+        th_cust: "ग्राहक (Customer)",
+        th_items_count: "सामान",
+        th_total_amt: "कुल बिल (₹)",
+        th_pay_mode: "भुगतान मोड",
+        th_status: "स्थिति",
+        th_bill_action: "कार्रवाई (Actions)",
+        btn_reprint: "रसीद",
+        btn_return: "वापसी",
+        btn_cancel_bill: "रद्द",
+        status_confirmed: "पक्का",
+        status_cancelled: "रद्द (Cancelled)",
+        modal_return_title: "सामान वापसी (Product Return)",
+        modal_return_help: "जो सामान वापस लेना है उसकी मात्रा (Return Qty) दर्ज करें। स्टॉक तुरंत दुकान में वापस जुड़ जाएगा।",
+        th_ret_item: "सामान",
+        th_ret_sold: "बिका हुआ",
+        th_ret_already: "पहले वापसी",
+        th_ret_avail: "वापसी योग्य",
+        th_ret_qty: "वापस मात्रा *",
+        th_ret_price: "भाव (₹)",
+        th_ret_total: "रिफंड रकम (₹)",
+        lbl_refund_mode: "रिफंड का तरीका (Refund Mode) *",
+        opt_refund_cash: "💵 Cash (नकद रिफंड)",
+        opt_refund_upi: "📱 UPI (ऑनलाइन रिफंड)",
+        opt_refund_due: "📒 Due Adjustment (उधारी खाते से काटें)",
+        lbl_return_reason: "वापसी का कारण (Reason)",
+        ph_return_reason: "उदा. खराब माल / ज़रूरत नहीं थी",
+        total_refund_lbl: "कुल रिफंड राशि:",
+        btn_confirm_return: "वापसी दर्ज करें (Confirm Return)",
+        alert_select_return_qty: "कृपया कम से कम एक सामान की वापसी मात्रा दर्ज करें!",
+        alert_return_success: "सामान सफलतापूर्वक वापस ले लिया गया! स्टॉक में माल जुड़ गया।",
+        confirm_cancel_bill_msg: "⚠️ क्या आप वाकई बिल {bill} को रद्द (Cancel) करना चाहते हैं?\n\n- सारा माल इन्वेंट्री में वापस जुड़ जाएगा।\n- अगर उधारी थी तो ग्राहक के खाते से हटा दी जाएगी।",
+        prompt_cancel_reason: "बिल रद्द करने का कारण दर्ज करें (वैकल्पिक):",
+        alert_cancel_success: "बिल सफलतापूर्वक रद्द कर दिया गया और स्टॉक रीस्टोर हो गया!",
+        no_bills_found: "कोई बिल नहीं मिला"
       },
       en: {
         page_title: "Kirana Dukan AI - Smart POS & Stock Manager",
@@ -1153,7 +1344,52 @@
         alert_partial_too_high_inline: "⚠️ Amount ₹{final} is >= bill total! Use CASH mode instead.",
         alert_partial_too_high: "⚠️ Partial payment (₹{amt}) must be less than bill total (₹{final})! Use CASH mode if fully paid.",
         alert_partial_zero: "⚠️ Partial payment must be greater than ₹0! Choose Credit (Udhaar) mode if nothing received.",
-        ph_partial: "e.g. 100"
+        ph_partial: "e.g. 100",
+        tab_history: "Bill History",
+        history_title: "📜 Bill History & Returns",
+        history_sub: "Search past bills, re-print receipts, process product returns or cancel bills",
+        lbl_total_bills_found: "Total Bills:",
+        lbl_total_value: "Total:",
+        ph_history_search: "Search by bill number, customer name or mobile...",
+        btn_all_dates: "All",
+        opt_all_status: "All Status",
+        opt_confirmed: "✅ Confirmed Bills",
+        opt_cancelled: "❌ Cancelled Bills",
+        th_bill_no_time: "Bill No. & Time",
+        th_cust: "Customer",
+        th_items_count: "Items",
+        th_total_amt: "Total (₹)",
+        th_pay_mode: "Payment Mode",
+        th_status: "Status",
+        th_bill_action: "Actions",
+        btn_reprint: "Receipt",
+        btn_return: "Return",
+        btn_cancel_bill: "Cancel",
+        status_confirmed: "Confirmed",
+        status_cancelled: "Cancelled",
+        modal_return_title: "Product Return",
+        modal_return_help: "Enter return quantity for items to return. Stock will be restored immediately.",
+        th_ret_item: "Product",
+        th_ret_sold: "Sold Qty",
+        th_ret_already: "Already Ret.",
+        th_ret_avail: "Available",
+        th_ret_qty: "Return Qty *",
+        th_ret_price: "Rate (₹)",
+        th_ret_total: "Refund (₹)",
+        lbl_refund_mode: "Refund Mode *",
+        opt_refund_cash: "💵 Cash Refund",
+        opt_refund_upi: "📱 UPI Refund",
+        opt_refund_due: "📒 Due Adjustment (Deduct from Udhaar)",
+        lbl_return_reason: "Reason for Return",
+        ph_return_reason: "e.g. Defective / customer changed mind",
+        total_refund_lbl: "Total Refund Amount:",
+        btn_confirm_return: "Confirm Return",
+        alert_select_return_qty: "Please enter return quantity for at least one item!",
+        alert_return_success: "Product returned successfully! Inventory stock has been restored.",
+        confirm_cancel_bill_msg: "⚠️ Are you sure you want to cancel bill {bill}?\n\n- All items will be restored to inventory.\n- Any pending udhaar will be reversed.",
+        prompt_cancel_reason: "Enter reason for cancellation (optional):",
+        alert_cancel_success: "Bill cancelled successfully and inventory restored!",
+        no_bills_found: "No bills found"
       }
     };
 
@@ -1201,6 +1437,8 @@
         loadInventoryTable();
       } else if (currentActiveTab === 'khata') {
         loadCustomersList();
+      } else if (currentActiveTab === 'history') {
+        loadBillsHistory();
       } else if (currentActiveTab === 'report') {
         loadDailyReport();
       }
@@ -1229,6 +1467,7 @@
       if (tabId === 'billing') loadProducts();
       if (tabId === 'purchase') loadInventoryTable();
       if (tabId === 'khata') loadCustomersList();
+      if (tabId === 'history') loadBillsHistory();
       if (tabId === 'report') loadDailyReport();
     }
 
@@ -2223,6 +2462,314 @@
         monthView.classList.remove('hidden');
         monthBtn.className = 'px-3 py-1 rounded-md bg-[#15803D] text-white shadow-xs transition';
         dayBtn.className = 'px-3 py-1 rounded-md text-[#78716C] hover:text-[#1C1917] transition';
+      }
+    }
+
+    // ========================================================
+    // 5. BILL HISTORY & POST-SALE OPERATIONS
+    // ========================================================
+    let historySearchTimer = null;
+    let cachedHistoryBills = [];
+
+    function debounceHistorySearch() {
+      clearTimeout(historySearchTimer);
+      historySearchTimer = setTimeout(() => {
+        loadBillsHistory();
+      }, 300);
+    }
+
+    function clearHistoryDate() {
+      const dateInp = document.getElementById('inp-history-date');
+      if (dateInp) dateInp.value = '';
+      loadBillsHistory();
+    }
+
+    async function loadBillsHistory() {
+      const q = (document.getElementById('inp-history-search')?.value || '').trim();
+      const date = document.getElementById('inp-history-date')?.value || '';
+      const status = document.getElementById('sel-history-status')?.value || 'ALL';
+
+      let url = '/api/sales/bills?';
+      const params = new URLSearchParams();
+      if (q) params.append('query', q);
+      if (date) params.append('date', date);
+      if (status) params.append('status', status);
+
+      try {
+        const res = await fetch(url + params.toString());
+        const data = await res.json();
+        if (data.success) {
+          cachedHistoryBills = data.bills;
+          renderBillsHistory(cachedHistoryBills);
+        }
+      } catch (e) {
+        console.error('Error loading bills history:', e);
+      }
+    }
+
+    function renderBillsHistory(bills) {
+      const tbody = document.getElementById('history-bills-tbody');
+      const countEl = document.getElementById('history-total-count');
+      const amountEl = document.getElementById('history-total-amount');
+
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (countEl) countEl.innerText = bills.length;
+      const totalAmount = bills.filter(b => b.status === 'CONFIRMED').reduce((acc, b) => acc + (b.final_amount || 0), 0);
+      if (amountEl) amountEl.innerText = '₹' + totalAmount.toFixed(2);
+
+      if (!bills.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-[#78716C] italic">${i18n[currentLang].no_bills_found}</td></tr>`;
+        return;
+      }
+
+      bills.forEach(bill => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-[#FAFAF7] transition text-xs';
+
+        // Payment mode badge styling
+        let pmBadge = '';
+        if (bill.payment_mode === 'CASH') {
+          pmBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">${i18n[currentLang].mode_cash_lbl}</span>`;
+        } else if (bill.payment_mode === 'UPI') {
+          pmBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">${i18n[currentLang].mode_upi_lbl}</span>`;
+        } else if (bill.payment_mode === 'UDHAAR') {
+          pmBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">${i18n[currentLang].mode_udhaar_lbl}</span>`;
+        } else if (bill.payment_mode === 'PARTIAL') {
+          pmBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200">${i18n[currentLang].mode_partial_lbl}</span>`;
+        }
+
+        // Status badge
+        let statusBadge = '';
+        if (bill.status === 'CONFIRMED') {
+          statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">✓ ${i18n[currentLang].status_confirmed}</span>`;
+          if (bill.returns_count > 0) {
+            statusBadge += ` <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">🔄 Return</span>`;
+          }
+        } else if (bill.status === 'CANCELLED') {
+          statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 border border-red-300">✕ ${i18n[currentLang].status_cancelled}</span>`;
+        } else {
+          statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-700 border border-stone-300">${bill.status}</span>`;
+        }
+
+        const dateStr = new Date(bill.created_at || bill.bill_date).toLocaleString(currentLang === 'hi' ? 'hi-IN' : 'en-IN');
+        const custDisplay = bill.customer_name 
+          ? `<b>${escapeHtml(bill.customer_name)}</b><span class="block text-[10px] text-[#78716C] font-mono">${escapeHtml(bill.customer_mobile || '')}</span>`
+          : `<span class="text-[#78716C] font-semibold">${i18n[currentLang].walkin_receipt}</span>`;
+
+        const isCancelled = bill.status === 'CANCELLED';
+
+        tr.innerHTML = `
+          <td class="p-3">
+            <span class="font-mono font-bold text-[#1C1917] block">${bill.bill_number}</span>
+            <span class="text-[10px] text-[#78716C]">${dateStr}</span>
+          </td>
+          <td class="p-3">${custDisplay}</td>
+          <td class="p-3 text-center font-bold text-[#1C1917]">${bill.item_count}</td>
+          <td class="p-3 text-right font-extrabold font-mono text-[#15803D]">₹${Number(bill.final_amount).toFixed(2)}</td>
+          <td class="p-3 text-center">${pmBadge}</td>
+          <td class="p-3 text-center">${statusBadge}</td>
+          <td class="p-3 text-right">
+            <div class="flex items-center justify-end gap-1.5">
+              <button onclick="reprintBill(${bill.id})" title="Re-print Receipt" class="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-[#1C1917] rounded-lg text-xs font-bold transition flex items-center gap-1">
+                <i class="fa-solid fa-print"></i> <span>${i18n[currentLang].btn_reprint}</span>
+              </button>
+              ${!isCancelled ? `
+                <button onclick="openReturnModal(${bill.id})" title="Return Items" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                  <i class="fa-solid fa-rotate-left"></i> <span>${i18n[currentLang].btn_return}</span>
+                </button>
+                <button onclick="confirmCancelBill(${bill.id}, '${bill.bill_number}')" title="Cancel Bill" class="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                  <i class="fa-solid fa-ban"></i> <span>${i18n[currentLang].btn_cancel_bill}</span>
+                </button>
+              ` : `
+                <span class="text-[11px] text-stone-400 italic">रद्द शुदा</span>
+              `}
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function reprintBill(billId) {
+      try {
+        const res = await fetch(`/api/sales/bills/${billId}`);
+        const data = await res.json();
+        if (data.success && data.bill) {
+          showReceipt(data.bill);
+        } else {
+          alert(i18n[currentLang].error_prefix + (data.error || 'Bill not found'));
+        }
+      } catch (e) {
+        alert(i18n[currentLang].error_prefix + e.message);
+      }
+    }
+
+    let activeReturnBill = null;
+
+    async function openReturnModal(billId) {
+      try {
+        const res = await fetch(`/api/sales/bills/${billId}`);
+        const data = await res.json();
+        if (!data.success || !data.bill) {
+          alert(i18n[currentLang].error_prefix + 'Bill not found');
+          return;
+        }
+
+        activeReturnBill = data.bill;
+        document.getElementById('ret-sales-bill-id').value = billId;
+        document.getElementById('ret-bill-number').innerText = activeReturnBill.bill_number;
+        document.getElementById('ret-cust-name').innerText = activeReturnBill.customer_name || i18n[currentLang].walkin_receipt;
+        document.getElementById('ret-reason').value = '';
+
+        // Configure Due adjustment option
+        const optDue = document.getElementById('opt-due-adj');
+        if (optDue) {
+          optDue.disabled = !activeReturnBill.customer_id;
+        }
+        document.getElementById('ret-refund-mode').value = 'CASH';
+
+        // Render Return Items
+        const tbody = document.getElementById('ret-items-tbody');
+        tbody.innerHTML = '';
+
+        activeReturnBill.items.forEach(it => {
+          const avail = it.available_return_qty !== undefined ? it.available_return_qty : it.quantity;
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-[#FAFAF7] transition';
+          tr.innerHTML = `
+            <td class="py-2 px-3 font-bold text-[#1C1917]">${escapeHtml(it.product_name)}</td>
+            <td class="py-2 px-2 text-center text-[#78716C]">${it.quantity} ${it.unit}</td>
+            <td class="py-2 px-2 text-center text-[#78716C]">${it.returned_quantity || 0}</td>
+            <td class="py-2 px-2 text-center font-bold text-[#15803D]">${avail} ${it.unit}</td>
+            <td class="py-2 px-3 text-center">
+              ${avail > 0 ? `
+                <input type="number" 
+                       id="ret-qty-${it.id}" 
+                       data-item-id="${it.id}" 
+                       data-price="${it.selling_price}" 
+                       data-max="${avail}" 
+                       min="0" 
+                       max="${avail}" 
+                       step="any" 
+                       value="0" 
+                       oninput="recalcReturnTotal()" 
+                       class="ret-qty-input w-20 p-1.5 text-center font-bold rounded-lg border border-[#E7E5E4] focus:outline-none focus:border-amber-600 bg-white">
+              ` : `<span class="text-[10px] text-[#A8A29E] font-semibold">पूर्ण वापसी</span>`}
+            </td>
+            <td class="py-2 px-2 text-right font-mono text-[#78716C]">₹${Number(it.selling_price).toFixed(2)}</td>
+            <td class="py-2 px-3 text-right font-mono font-bold text-red-600" id="ret-line-total-${it.id}">₹0.00</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        recalcReturnTotal();
+        document.getElementById('modal-return-items').classList.remove('hidden');
+      } catch (e) {
+        alert(i18n[currentLang].error_prefix + e.message);
+      }
+    }
+
+    function recalcReturnTotal() {
+      let grandRefund = 0;
+      const inputs = document.querySelectorAll('.ret-qty-input');
+      inputs.forEach(inp => {
+        const itemId = inp.getAttribute('data-item-id');
+        const price = parseFloat(inp.getAttribute('data-price')) || 0;
+        const max = parseFloat(inp.getAttribute('data-max')) || 0;
+        let qty = parseFloat(inp.value) || 0;
+
+        if (qty < 0) { qty = 0; inp.value = 0; }
+        if (qty > max) {
+          qty = max;
+          inp.value = max;
+          alert(`अधिकतम ${max} ही वापस हो सकता है!`);
+        }
+
+        const lineTotal = qty * price;
+        grandRefund += lineTotal;
+
+        const lineEl = document.getElementById(`ret-line-total-${itemId}`);
+        if (lineEl) lineEl.innerText = '₹' + lineTotal.toFixed(2);
+      });
+
+      document.getElementById('ret-total-refund').innerText = '₹' + grandRefund.toFixed(2);
+    }
+
+    async function submitProductReturn() {
+      if (!activeReturnBill) return;
+
+      const returnItems = [];
+      const inputs = document.querySelectorAll('.ret-qty-input');
+      inputs.forEach(inp => {
+        const itemId = parseInt(inp.getAttribute('data-item-id'));
+        const qty = parseFloat(inp.value) || 0;
+        if (qty > 0) {
+          returnItems.push({ sales_item_id: itemId, quantity: qty });
+        }
+      });
+
+      if (!returnItems.length) {
+        alert(i18n[currentLang].alert_select_return_qty);
+        return;
+      }
+
+      const refundMode = document.getElementById('ret-refund-mode').value;
+      const reason = document.getElementById('ret-reason').value.trim() || null;
+
+      try {
+        const res = await fetch('/api/post-sale/return-product', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sales_bill_id: activeReturnBill.id,
+            return_items: returnItems,
+            refund_mode: refundMode,
+            reason: reason
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ ' + i18n[currentLang].alert_return_success + ` (रिफंड: ₹${data.data.refund_amount.toFixed(2)})`);
+          closeModal('modal-return-items');
+          loadBillsHistory();
+          loadProducts(); // refresh live stock
+        } else {
+          alert(i18n[currentLang].error_prefix + data.error);
+        }
+      } catch (e) {
+        alert(i18n[currentLang].error_prefix + e.message);
+      }
+    }
+
+    async function confirmCancelBill(billId, billNumber) {
+      const confirmMsg = i18n[currentLang].confirm_cancel_bill_msg.replace('{bill}', billNumber);
+      if (!confirm(confirmMsg)) return;
+
+      const reason = prompt(i18n[currentLang].prompt_cancel_reason, "") || "Cancelled by store owner";
+
+      try {
+        const res = await fetch('/api/post-sale/cancel-bill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sales_bill_id: billId,
+            reason: reason
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ ' + i18n[currentLang].alert_cancel_success);
+          loadBillsHistory();
+          loadProducts(); // refresh live stock
+        } else {
+          alert(i18n[currentLang].error_prefix + data.error);
+        }
+      } catch (e) {
+        alert(i18n[currentLang].error_prefix + e.message);
       }
     }
 

@@ -261,6 +261,35 @@ async def create_sales_bill(payload: CreateSalePayload):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.get("/api/sales/bills")
+async def list_sales_bills(query: Optional[str] = None, date: Optional[str] = None,
+                           status: Optional[str] = None, limit: int = 100):
+    try:
+        bills = sales.get_bills(query=query, date=date, status=status, limit=limit)
+        return {"success": True, "bills": bills}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/sales/bills/{bill_id}")
+async def get_sales_bill_details(bill_id: int):
+    try:
+        bill = sales.get_bill_details(bill_id)
+        if not bill:
+            raise HTTPException(status_code=404, detail="Bill nahi mila.")
+        
+        # Attach customer monthly summary for re-print
+        if bill.get("customer_id"):
+            try:
+                stmt = customers.get_monthly_statement(bill["customer_id"])
+                bill["monthly_summary"] = stmt.get("months_summary", [])
+            except Exception:
+                bill["monthly_summary"] = []
+        return {"success": True, "bill": bill}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 # -------------------------------------------------------------
 # 5. POST-SALE APIs (MODULE 3)
 # -------------------------------------------------------------
