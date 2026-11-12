@@ -269,6 +269,19 @@ class Database:
             for item in items:
                 product_id = item["product_id"]
 
+                # Safeguard: agar product_id None hai, pehle check karo ki is naam ka product pehle se toh nahi hai
+                if product_id is None:
+                    existing_prod = conn.execute(
+                        "SELECT id FROM products WHERE LOWER(name) = LOWER(?)",
+                        (item["raw_name"].strip(),)
+                    ).fetchone()
+                    if existing_prod:
+                        product_id = existing_prod["id"]
+                        conn.execute(
+                            "UPDATE purchase_items SET product_id=? WHERE id=?",
+                            (product_id, item["id"])
+                        )
+
                 if product_id is None:
                     if not item["is_new_item"]:
                         raise ValueError(
