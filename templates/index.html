@@ -1222,7 +1222,8 @@
         lbl_live_profit: "अनुमानित मुनाफा (Profit):",
         btn_save_price: "भाव सुरक्षित करें",
         alert_price_saved: "सामान का भाव सफलतापूर्वक बदल दिया गया!",
-        alert_valid_price: "कृपया सही खरीद और बिक्री भाव दर्ज करें (0 या उससे अधिक)"
+        alert_valid_price: "कृपया सही खरीद और बिक्री भाव दर्ज करें (0 या उससे अधिक)",
+        lbl_quick_weight: "मात्रा / वजन:"
       },
       en: {
         page_title: "Kirana Dukan AI - Smart POS & Stock Manager",
@@ -1460,7 +1461,8 @@
         lbl_live_profit: "Estimated Margin / Profit:",
         btn_save_price: "Save Rates",
         alert_price_saved: "Product rates updated successfully!",
-        alert_valid_price: "Please enter valid Cost and Selling prices (0 or greater)"
+        alert_valid_price: "Please enter valid Cost and Selling prices (0 or greater)",
+        lbl_quick_weight: "Weight / Qty:"
       }
     };
 
@@ -1569,6 +1571,9 @@
           : (isLow ? `<span class="bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A] text-[10px] px-1.5 py-0.5 rounded font-bold">${i18n[currentLang].low_stock_prefix}${p.current_stock} ${p.unit}</span>`
                    : `<span class="bg-[#DCFCE7] text-[#15803D] border border-[#BBF7D0] text-[10px] px-1.5 py-0.5 rounded font-medium">${p.current_stock} ${p.unit}</span>`);
 
+        const u = (p.unit || '').toLowerCase().trim();
+        const isLoose = !isOutOfStock && (u === 'kg' || u === 'kilo' || u === 'kilogram' || u === 'liter' || u === 'ltr' || u === 'l');
+
         const card = document.createElement('div');
         card.className = `p-3 rounded-xl border transition shadow-sm cursor-pointer select-none ${isOutOfStock ? 'opacity-60 bg-[#FAFAF7] border-[#E7E5E4] cursor-not-allowed' : 'bg-white border-[#E7E5E4] hover:border-[#15803D] hover:shadow-md'}`;
         card.onclick = () => { 
@@ -1577,13 +1582,27 @@
         };
         card.innerHTML = `
           <div class="flex justify-between items-start mb-1">
-            <h4 class="font-bold text-[#1C1917] text-xs line-clamp-1">${p.name}</h4>
+            <h4 class="font-bold text-[#1C1917] text-xs line-clamp-1">${escapeHtml(p.name)}</h4>
           </div>
-          ${p.hindi_name ? `<p class="text-[11px] text-[#78716C] mb-2 truncate">${p.hindi_name}</p>` : '<div class="h-4"></div>'}
+          ${p.hindi_name ? `<p class="text-[11px] text-[#78716C] mb-2 truncate">${escapeHtml(p.hindi_name)}</p>` : '<div class="h-4"></div>'}
           <div class="flex justify-between items-center mt-2 pt-2 border-t border-[#E7E5E4]">
-            <span class="font-extrabold text-[#15803D] text-sm">₹${p.selling_price}</span>
+            <span class="font-extrabold text-[#15803D] text-sm font-mono">₹${p.selling_price}</span>
             ${stockBadge}
           </div>
+          ${isLoose ? `
+            <div class="flex items-center gap-1 mt-2 pt-2 border-t border-dashed border-[#E7E5E4]" onclick="event.stopPropagation()">
+              <span class="text-[9px] text-[#78716C] font-bold">Quick:</span>
+              ${(u === 'kg' || u === 'kilo' || u === 'kilogram') ? `
+                <button type="button" onclick="event.stopPropagation(); addToCartWithQty(${p.id}, 0.25)" class="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded text-[10px] font-bold transition shadow-xs">+250g</button>
+                <button type="button" onclick="event.stopPropagation(); addToCartWithQty(${p.id}, 0.5)" class="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded text-[10px] font-bold transition shadow-xs">+500g</button>
+                <button type="button" onclick="event.stopPropagation(); addToCartWithQty(${p.id}, 1)" class="px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded text-[10px] font-bold transition shadow-xs">+1kg</button>
+              ` : `
+                <button type="button" onclick="event.stopPropagation(); addToCartWithQty(${p.id}, 0.25)" class="px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded text-[10px] font-bold transition shadow-xs">+250ml</button>
+                <button type="button" onclick="event.stopPropagation(); addToCartWithQty(${p.id}, 0.5)" class="px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded text-[10px] font-bold transition shadow-xs">+500ml</button>
+                <button type="button" onclick="event.stopPropagation(); addToCartWithQty(${p.id}, 1)" class="px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded text-[10px] font-bold transition shadow-xs">+1L</button>
+              `}
+            </div>
+          ` : ''}
         `;
         grid.appendChild(card);
       });
@@ -1611,17 +1630,105 @@
       renderCart();
     }
 
+    function addToCartWithQty(productId, qty) {
+      const p = cachedProducts.find(i => i.id === productId);
+      if (!p) return;
+      if (p.current_stock <= 0) {
+        alert(`${p.name} ${i18n[currentLang].alert_out_of_stock}`);
+        return;
+      }
+      const existing = cart.find(i => i.product_id === p.id);
+      if (existing) {
+        const targetQty = Math.round((existing.quantity + qty) * 1000) / 1000;
+        if (targetQty > p.current_stock) {
+          alert(`${i18n[currentLang].alert_stock_limit_prefix} ${p.current_stock} ${p.unit} ${i18n[currentLang].alert_stock_limit_suffix}`);
+          return;
+        }
+        existing.quantity = targetQty;
+      } else {
+        const initialQty = Math.min(qty, p.current_stock);
+        cart.push({
+          product_id: p.id,
+          name: p.name,
+          unit: p.unit,
+          selling_price: p.selling_price,
+          max_stock: p.current_stock,
+          quantity: Math.round(initialQty * 1000) / 1000
+        });
+      }
+      renderCart();
+    }
+
     function updateCartQty(idx, delta) {
       const item = cart[idx];
-      const newQty = item.quantity + delta;
+      if (!item) return;
+      const u = (item.unit || '').toLowerCase().trim();
+      let step = 1;
+      if ((u === 'kg' || u === 'kilo' || u === 'kilogram' || u === 'liter' || u === 'ltr' || u === 'l') && item.quantity < 1) {
+        step = 0.25;
+      }
+      const newQty = item.quantity + (delta * step);
       if (newQty <= 0) {
         cart.splice(idx, 1);
       } else if (newQty > item.max_stock) {
         alert(`${i18n[currentLang].alert_stock_limit_prefix} ${item.max_stock} ${item.unit} ${i18n[currentLang].alert_stock_limit_suffix}`);
       } else {
-        item.quantity = Math.round(newQty * 100) / 100;
+        item.quantity = Math.round(newQty * 1000) / 1000;
       }
       renderCart();
+    }
+
+    function setCartQty(idx, qty) {
+      const item = cart[idx];
+      if (!item) return;
+      if (isNaN(qty) || qty <= 0) {
+        cart.splice(idx, 1);
+      } else if (qty > item.max_stock) {
+        alert(`${i18n[currentLang].alert_stock_limit_prefix} ${item.max_stock} ${item.unit} ${i18n[currentLang].alert_stock_limit_suffix}`);
+      } else {
+        item.quantity = Math.round(qty * 1000) / 1000;
+      }
+      renderCart();
+    }
+
+    function getQuickQtyChips(unit, currentQty, idx) {
+      const u = (unit || '').toLowerCase().trim();
+      let options = [];
+      
+      if (u === 'kg' || u === 'kilo' || u === 'kilogram') {
+        options = [
+          { label: '100g', val: 0.1 },
+          { label: currentLang === 'hi' ? '250g (पाव)' : '250g (Pav)', val: 0.25 },
+          { label: currentLang === 'hi' ? '500g (आधा)' : '500g (Half)', val: 0.5 },
+          { label: '1 kg', val: 1 },
+          { label: '2 kg', val: 2 },
+          { label: '5 kg', val: 5 }
+        ];
+      } else if (u === 'liter' || u === 'litre' || u === 'ltr' || u === 'l') {
+        options = [
+          { label: '250ml', val: 0.25 },
+          { label: currentLang === 'hi' ? '500ml (आधा)' : '500ml (Half)', val: 0.5 },
+          { label: '1 L', val: 1 },
+          { label: '2 L', val: 2 },
+          { label: '5 L', val: 5 }
+        ];
+      } else {
+        options = [
+          { label: '1', val: 1 },
+          { label: '2', val: 2 },
+          { label: '3', val: 3 },
+          { label: '5', val: 5 },
+          { label: '10', val: 10 }
+        ];
+      }
+
+      return options.map(opt => {
+        const isSelected = Math.abs(currentQty - opt.val) < 0.001;
+        const btnCls = isSelected
+          ? 'bg-[#15803D] text-white border-[#15803D] font-extrabold shadow-xs'
+          : 'bg-white hover:bg-[#FEF3C7] text-[#1C1917] border-[#E7E5E4] font-semibold';
+        return `<button type="button" onclick="setCartQty(${idx}, ${opt.val})" class="px-2 py-0.5 rounded-md text-[10px] border transition ${btnCls}">${opt.label}</button>`;
+      }).join('');
     }
 
     function removeFromCart(idx) {
@@ -1643,21 +1750,32 @@
       container.innerHTML = '';
       cart.forEach((it, idx) => {
         const row = document.createElement('div');
-        row.className = 'flex justify-between items-center bg-[#FAFAF7] p-2 rounded-lg border border-[#E7E5E4] text-xs';
+        row.className = 'bg-[#FAFAF7] p-2.5 rounded-xl border border-[#E7E5E4] text-xs space-y-1.5 shadow-xs';
+        
+        const chipsHtml = getQuickQtyChips(it.unit, it.quantity, idx);
+
         row.innerHTML = `
-          <div class="flex-1 pr-2">
-            <p class="font-bold text-[#1C1917] line-clamp-1">${it.name}</p>
-            <p class="text-[11px] text-[#78716C]">₹${it.selling_price} / ${it.unit}</p>
+          <div class="flex justify-between items-center">
+            <div class="flex-1 pr-2">
+              <p class="font-bold text-[#1C1917] line-clamp-1">${escapeHtml(it.name)}</p>
+              <p class="text-[11px] text-[#78716C] font-mono">₹${it.selling_price.toFixed(1)} / ${it.unit}</p>
+            </div>
+            <div class="flex items-center gap-1 mr-2">
+              <button type="button" onclick="updateCartQty(${idx}, -1)" class="w-6 h-6 rounded bg-white border border-[#E7E5E4] font-bold text-[#1C1917] hover:bg-[#FEF3C7] flex items-center justify-center transition shadow-xs">-</button>
+              <input type="number" step="any" min="0.01" value="${it.quantity}" onchange="setCartQty(${idx}, parseFloat(this.value)||1)" class="w-14 text-center text-xs py-1 px-0.5 rounded border border-[#E7E5E4] bg-white font-bold text-[#1C1917] focus:outline-none focus:border-[#15803D]">
+              <button type="button" onclick="updateCartQty(${idx}, 1)" class="w-6 h-6 rounded bg-white border border-[#E7E5E4] font-bold text-[#1C1917] hover:bg-[#FEF3C7] flex items-center justify-center transition shadow-xs">+</button>
+            </div>
+            <div class="text-right min-w-[55px]">
+              <p class="font-extrabold text-[#1C1917] font-mono">₹${(it.quantity * it.selling_price).toFixed(2)}</p>
+            </div>
+            <button type="button" onclick="removeFromCart(${idx})" class="text-[#A8A29E] hover:text-red-600 ml-2 transition" title="Remove"><i class="fa-solid fa-trash-can"></i></button>
           </div>
-          <div class="flex items-center gap-1 mr-3">
-            <button onclick="updateCartQty(${idx}, -1)" class="w-6 h-6 rounded bg-white border border-[#E7E5E4] font-bold text-[#1C1917] hover:bg-[#FEF3C7] flex items-center justify-center transition">-</button>
-            <input type="number" step="any" min="0.1" value="${it.quantity}" onchange="cart[${idx}].quantity=parseFloat(this.value)||1; renderCart();" class="w-12 text-center text-xs p-1 rounded border border-[#E7E5E4] bg-white font-bold text-[#1C1917]">
-            <button onclick="updateCartQty(${idx}, 1)" class="w-6 h-6 rounded bg-white border border-[#E7E5E4] font-bold text-[#1C1917] hover:bg-[#FEF3C7] flex items-center justify-center transition">+</button>
+          <div class="flex flex-wrap items-center gap-1 pt-1.5 border-t border-[#E7E5E4]/80">
+            <span class="text-[10px] text-[#78716C] font-bold mr-0.5 flex items-center gap-1">
+              <i class="fa-solid fa-weight-scale text-[9px] text-amber-600"></i> ${i18n[currentLang].lbl_quick_weight || 'मात्रा / वजन:'}
+            </span>
+            ${chipsHtml}
           </div>
-          <div class="text-right min-w-[50px]">
-            <p class="font-extrabold text-[#1C1917]">₹${(it.quantity * it.selling_price).toFixed(2)}</p>
-          </div>
-          <button onclick="removeFromCart(${idx})" class="text-[#A8A29E] hover:text-red-600 ml-2 transition"><i class="fa-solid fa-trash-can"></i></button>
         `;
         container.appendChild(row);
       });
