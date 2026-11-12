@@ -86,6 +86,10 @@ class CancelBillPayload(BaseModel):
     sales_bill_id: int
     reason: Optional[str] = None
 
+class UpdatePricePayload(BaseModel):
+    cost_price: Optional[float] = None
+    selling_price: Optional[float] = None
+
 # -------------------------------------------------------------
 # HOME ROUTE
 # -------------------------------------------------------------
@@ -115,6 +119,18 @@ async def update_product_limit(product_id: int, payload: UpdateLimitPayload):
         db.update_product_limit(product_id, payload.low_stock_limit)
         prod = db.get_product(product_id)
         return {"success": True, "message": "Alert limit update ho gayi!", "product": prod}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/products/{product_id}/update-price")
+async def update_product_price(product_id: int, payload: UpdatePricePayload):
+    try:
+        updated = db.update_product_price(
+            product_id,
+            cost_price=payload.cost_price,
+            selling_price=payload.selling_price
+        )
+        return {"success": True, "message": "Bhav (Price) update ho gaya!", "product": updated}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

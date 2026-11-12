@@ -90,6 +90,28 @@ class Database:
             """, (low_stock_limit, product_id))
             return True
 
+    def update_product_price(self, product_id: int, cost_price: float = None, selling_price: float = None):
+        """Dukandar kisi bhi product ka purchase rate (CP) ya selling rate (SP) update kar sakta hai."""
+        with self.connection() as conn:
+            prod = conn.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone()
+            if not prod:
+                raise ValueError("Product nahi mila.")
+
+            cp = float(cost_price) if cost_price is not None else float(prod["cost_price"])
+            sp = float(selling_price) if selling_price is not None else float(prod["selling_price"])
+
+            if cp < 0 or sp < 0:
+                raise ValueError("Rate (Price) zero ya usse bada hona chahiye.")
+
+            conn.execute("""
+                UPDATE products
+                SET cost_price = ?,
+                    selling_price = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (cp, sp, product_id))
+            return dict(conn.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone())
+
     def find_product_by_name(self, name):
         """Exact match check karta hai name ke basis par."""
         with self.connection() as conn:

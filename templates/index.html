@@ -405,6 +405,7 @@
                   <th class="py-2.5 px-3" data-i18n="th_alert_limit">अलर्ट लिमिट (बदलें)</th>
                   <th class="py-2.5 px-3" data-i18n="th_cp">खरीद (CP)</th>
                   <th class="py-2.5 px-3" data-i18n="th_sp">बिक्री (SP)</th>
+                  <th class="py-2.5 px-3 text-right" data-i18n="th_action">एक्शन</th>
                 </tr>
               </thead>
               <tbody id="inventory-tbody" class="divide-y divide-[#E7E5E4]">
@@ -786,6 +787,64 @@
     </div>
   </div>
 
+  <!-- MODAL: UPDATE PRODUCT PRICE (CP & SP) -->
+  <div id="modal-update-price" class="hidden fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-[#E7E5E4]">
+      <div class="flex justify-between items-start border-b border-[#E7E5E4] pb-3">
+        <div>
+          <h3 class="font-extrabold text-[#1C1917] text-base flex items-center gap-2">
+            <span>🏷️</span> <span data-i18n="modal_price_title">सामान का भाव बदलें</span>
+          </h3>
+          <p class="text-xs text-[#78716C] mt-0.5" id="price-modal-prod-name">-</p>
+        </div>
+        <button onclick="closeModal('modal-update-price')" class="text-stone-400 hover:text-stone-700 text-lg transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="price-modal-prod-id" />
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-[#1C1917] mb-1" data-i18n="lbl_cost_price">
+            खरीद भाव (Cost Price - CP ₹)
+          </label>
+          <div class="relative">
+            <span class="absolute left-3 top-2.5 text-stone-400 font-bold">₹</span>
+            <input type="number" step="any" min="0" id="price-modal-cp" oninput="calculateModalMargin()" class="w-full pl-7 pr-3 py-2 bg-[#FAFAF7] border border-[#E7E5E4] rounded-lg font-bold text-stone-800 focus:outline-none focus:border-[#15803D]" />
+          </div>
+          <span class="text-[10px] text-[#78716C]" data-i18n="hint_cp">होलसेलर या मंडी से किस भाव में आया</span>
+        </div>
+
+        <div>
+          <label class="block font-bold text-[#1C1917] mb-1" data-i18n="lbl_selling_price">
+            बिक्री भाव (Selling Price - SP ₹)
+          </label>
+          <div class="relative">
+            <span class="absolute left-3 top-2.5 text-emerald-600 font-bold">₹</span>
+            <input type="number" step="any" min="0" id="price-modal-sp" oninput="calculateModalMargin()" class="w-full pl-7 pr-3 py-2 bg-[#FAFAF7] border border-[#E7E5E4] rounded-lg font-bold text-emerald-700 focus:outline-none focus:border-[#15803D]" />
+          </div>
+          <span class="text-[10px] text-[#78716C]" data-i18n="hint_sp">ग्राहक को किस भाव में बेचना है</span>
+        </div>
+
+        <!-- Live Margin Indicator -->
+        <div class="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 flex justify-between items-center font-bold">
+          <span class="text-xs" data-i18n="lbl_live_profit">अनुमानित मुनाफा (Profit):</span>
+          <span id="price-modal-margin-display" class="font-extrabold text-sm text-emerald-700">₹0.0 (0%)</span>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2 border-t border-[#E7E5E4]">
+        <button onclick="closeModal('modal-update-price')" class="flex-1 py-2 bg-[#FAFAF7] hover:bg-[#E7E5E4] text-[#1C1917] rounded-lg font-bold transition text-xs border border-[#E7E5E4]" data-i18n="btn_cancel">
+          रद्द करें
+        </button>
+        <button onclick="saveProductPrice()" class="flex-1 py-2 bg-[#15803D] hover:bg-[#166534] text-white rounded-lg font-bold transition shadow-sm text-xs flex items-center justify-center gap-1">
+          <i class="fa-solid fa-check"></i> <span data-i18n="btn_save_price">भाव सुरक्षित करें</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: PRINTABLE BILL RECEIPT -->
   <div id="modal-receipt" class="hidden fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-[#E7E5E4]">
@@ -1152,7 +1211,18 @@
         confirm_cancel_bill_msg: "⚠️ क्या आप वाकई बिल {bill} को रद्द (Cancel) करना चाहते हैं?\n\n- सारा माल इन्वेंट्री में वापस जुड़ जाएगा।\n- अगर उधारी थी तो ग्राहक के खाते से हटा दी जाएगी।",
         prompt_cancel_reason: "बिल रद्द करने का कारण दर्ज करें (वैकल्पिक):",
         alert_cancel_success: "बिल सफलतापूर्वक रद्द कर दिया गया और स्टॉक रीस्टोर हो गया!",
-        no_bills_found: "कोई बिल नहीं मिला"
+        no_bills_found: "कोई बिल नहीं मिला",
+        th_action: "एक्शन",
+        btn_edit_price: "भाव बदलें",
+        modal_price_title: "सामान का भाव बदलें (CP / SP)",
+        lbl_cost_price: "खरीद भाव (Cost Price - CP ₹)",
+        lbl_selling_price: "बिक्री भाव (Selling Price - SP ₹)",
+        hint_cp: "होलसेलर या मंडी से किस भाव में आया",
+        hint_sp: "ग्राहक को किस भाव में बेचना है",
+        lbl_live_profit: "अनुमानित मुनाफा (Profit):",
+        btn_save_price: "भाव सुरक्षित करें",
+        alert_price_saved: "सामान का भाव सफलतापूर्वक बदल दिया गया!",
+        alert_valid_price: "कृपया सही खरीद और बिक्री भाव दर्ज करें (0 या उससे अधिक)"
       },
       en: {
         page_title: "Kirana Dukan AI - Smart POS & Stock Manager",
@@ -1379,7 +1449,18 @@
         confirm_cancel_bill_msg: "⚠️ Are you sure you want to cancel bill {bill}?\n\n- All items will be restored to inventory.\n- Any pending udhaar will be reversed.",
         prompt_cancel_reason: "Enter reason for cancellation (optional):",
         alert_cancel_success: "Bill cancelled successfully and inventory restored!",
-        no_bills_found: "No bills found"
+        no_bills_found: "No bills found",
+        th_action: "Action",
+        btn_edit_price: "Edit Price",
+        modal_price_title: "Update Product Rates (CP / SP)",
+        lbl_cost_price: "Cost Price (CP ₹)",
+        lbl_selling_price: "Selling Price (SP ₹)",
+        hint_cp: "Wholesale / Mandi purchase rate",
+        hint_sp: "Retail selling price for customers",
+        lbl_live_profit: "Estimated Margin / Profit:",
+        btn_save_price: "Save Rates",
+        alert_price_saved: "Product rates updated successfully!",
+        alert_valid_price: "Please enter valid Cost and Selling prices (0 or greater)"
       }
     };
 
@@ -2136,13 +2217,17 @@
       } catch (e) { alert(i18n[currentLang].error_prefix + e.message); }
     }
 
+    let inventoryProductsMap = {};
+
     async function loadInventoryTable() {
       try {
         const res = await fetch('/api/products');
         const data = await res.json();
         const tbody = document.getElementById('inventory-tbody');
         tbody.innerHTML = '';
+        inventoryProductsMap = {};
         data.products.forEach(p => {
+          inventoryProductsMap[p.id] = p;
           const isOutOfStock = p.current_stock <= 0;
           const isLow = p.current_stock > 0 && p.current_stock <= p.low_stock_limit;
           const badge = isOutOfStock
@@ -2151,19 +2236,29 @@
                      : `<span class="bg-[#DCFCE7] text-[#15803D] border border-[#BBF7D0] px-2 py-0.5 rounded font-bold">${p.current_stock} ${p.unit}</span>`);
 
           const tr = document.createElement('tr');
+          tr.className = 'hover:bg-[#FAFAF7] transition';
           tr.innerHTML = `
             <td class="py-2.5 px-3">
-              <span class="font-bold text-[#1C1917]">${p.name}</span>
-              ${p.hindi_name ? `<br><span class="text-[#78716C] text-[10px]">${p.hindi_name}</span>` : ''}
+              <span class="font-bold text-[#1C1917]">${escapeHtml(p.name)}</span>
+              ${p.hindi_name ? `<br><span class="text-[#78716C] text-[10px]">${escapeHtml(p.hindi_name)}</span>` : ''}
             </td>
             <td class="py-2.5 px-3">${badge}</td>
             <td class="py-2.5 px-3">
-              <button onclick="changeProductAlertLimit(${p.id}, '${p.name}', ${p.low_stock_limit})" title="Click to edit alert threshold" class="bg-[#FFFBEB] hover:bg-[#FEF3C7] text-[#B45309] px-2.5 py-1 rounded-lg text-[11px] font-bold border border-[#FDE68A] transition flex items-center gap-1 shadow-sm">
+              <button onclick="changeProductAlertLimit(${p.id})" title="Click to edit alert threshold" class="bg-[#FFFBEB] hover:bg-[#FEF3C7] text-[#B45309] px-2.5 py-1 rounded-lg text-[11px] font-bold border border-[#FDE68A] transition flex items-center gap-1 shadow-sm">
                 ⚠️ ${p.low_stock_limit} ${p.unit} <i class="fa-solid fa-pen-to-square text-[9px] text-[#B45309]"></i>
               </button>
             </td>
-            <td class="py-2.5 px-3 text-[#78716C] font-mono">₹${p.cost_price.toFixed(1)}</td>
-            <td class="py-2.5 px-3 font-extrabold text-[#15803D] font-mono">₹${p.selling_price.toFixed(1)}</td>
+            <td class="py-2.5 px-3 text-[#78716C] font-mono cursor-pointer hover:text-emerald-700 transition" onclick="openPriceModal(${p.id})" title="Click to edit rate">
+              ₹${p.cost_price.toFixed(1)} <i class="fa-solid fa-pen text-[9px] text-stone-300 ml-1"></i>
+            </td>
+            <td class="py-2.5 px-3 font-extrabold text-[#15803D] font-mono cursor-pointer hover:underline transition" onclick="openPriceModal(${p.id})" title="Click to edit rate">
+              ₹${p.selling_price.toFixed(1)} <i class="fa-solid fa-pen text-[9px] text-emerald-400 ml-1"></i>
+            </td>
+            <td class="py-2.5 px-3 text-right">
+              <button onclick="openPriceModal(${p.id})" class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 shadow-sm">
+                <i class="fa-solid fa-pen-to-square text-[10px]"></i> <span>${i18n[currentLang].btn_edit_price || 'भाव बदलें'}</span>
+              </button>
+            </td>
           `;
           tbody.appendChild(tr);
         });
@@ -2171,8 +2266,11 @@
     }
 
     async function changeProductAlertLimit(productId, name, currentLimit) {
-      const promptMsg = `${i18n[currentLang].prompt_alert_limit_part1}${name}${i18n[currentLang].prompt_alert_limit_part2}`;
-      const newLimitStr = prompt(promptMsg, currentLimit);
+      const prod = inventoryProductsMap[productId];
+      const prodName = name || (prod ? prod.name : 'Product');
+      const limitVal = currentLimit !== undefined ? currentLimit : (prod ? prod.low_stock_limit : 5);
+      const promptMsg = `${i18n[currentLang].prompt_alert_limit_part1}${prodName}${i18n[currentLang].prompt_alert_limit_part2}`;
+      const newLimitStr = prompt(promptMsg, limitVal);
       if (newLimitStr === null) return;
       const parsedLimit = parseFloat(newLimitStr);
       if (isNaN(parsedLimit) || parsedLimit < 0) {
@@ -2191,6 +2289,62 @@
           loadInventoryTable();
         } else {
           alert(i18n[currentLang].error_prefix + data.error);
+        }
+      } catch (e) {
+        alert(i18n[currentLang].error_prefix + e.message);
+      }
+    }
+
+    function openPriceModal(productId) {
+      const p = inventoryProductsMap[productId];
+      if (!p) return;
+      document.getElementById('price-modal-prod-id').value = p.id;
+      document.getElementById('price-modal-prod-name').innerText = `${p.name} ${p.hindi_name ? '(' + p.hindi_name + ')' : ''} [${p.unit}]`;
+      document.getElementById('price-modal-cp').value = p.cost_price;
+      document.getElementById('price-modal-sp').value = p.selling_price;
+      calculateModalMargin();
+      document.getElementById('modal-update-price').classList.remove('hidden');
+    }
+
+    function calculateModalMargin() {
+      const cp = parseFloat(document.getElementById('price-modal-cp').value) || 0;
+      const sp = parseFloat(document.getElementById('price-modal-sp').value) || 0;
+      const profit = sp - cp;
+      const marginPct = sp > 0 ? ((profit / sp) * 100).toFixed(1) : '0';
+      const displayEl = document.getElementById('price-modal-margin-display');
+      if (profit >= 0) {
+        displayEl.className = 'font-extrabold text-sm text-emerald-700';
+        displayEl.innerText = `+₹${profit.toFixed(1)} (${marginPct}%)`;
+      } else {
+        displayEl.className = 'font-extrabold text-sm text-red-600';
+        displayEl.innerText = `-₹${Math.abs(profit).toFixed(1)} (${marginPct}%) [घाटा]`;
+      }
+    }
+
+    async function saveProductPrice() {
+      const productId = document.getElementById('price-modal-prod-id').value;
+      const cp = parseFloat(document.getElementById('price-modal-cp').value);
+      const sp = parseFloat(document.getElementById('price-modal-sp').value);
+
+      if (isNaN(cp) || cp < 0 || isNaN(sp) || sp < 0) {
+        alert(i18n[currentLang].alert_valid_price || 'कृपया सही खरीद और बिक्री भाव दर्ज करें (0 या उससे अधिक)');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/products/${productId}/update-price`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cost_price: cp, selling_price: sp })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeModal('modal-update-price');
+          alert('✅ ' + (i18n[currentLang].alert_price_saved || data.message));
+          loadInventoryTable();
+          loadProducts(); // Billing Counter grid refresh
+        } else {
+          alert(i18n[currentLang].error_prefix + (data.detail || data.error));
         }
       } catch (e) {
         alert(i18n[currentLang].error_prefix + e.message);
