@@ -838,7 +838,7 @@
           <span class="font-bold text-[#15803D]" id="rcpt-change">₹0.00</span>
         </div>
         <div id="rcpt-due-row" class="hidden flex justify-between text-red-600 font-bold">
-          <span data-i18n="lbl_due">इस बिल में नया उधार:</span>
+          <span data-i18n="rcpt_bill_due">इस बिल का उधार (Bill Credit):</span>
           <span id="rcpt-due">₹0.00</span>
         </div>
 
@@ -855,12 +855,12 @@
               <span class="font-medium text-[#1C1917]" id="rcpt-prev-due">₹0.00</span>
             </div>
             <div class="flex justify-between text-[#B45309]">
-              <span data-i18n="rcpt_added_due">आज नया उधार जुड़ा (+):</span>
+              <span data-i18n="rcpt_added_due">इस बिल में उधार जुड़ा (+):</span>
               <span class="font-bold" id="rcpt-current-added-due">₹0.00</span>
             </div>
             <div class="flex justify-between text-[#1C1917] font-extrabold border-t border-[#FDE68A] pt-1 text-sm">
-              <span class="text-red-700" data-i18n="rcpt_total_due">कुल नया बकाया (Total Due):</span>
-              <span class="text-red-700" id="rcpt-total-due">₹0.00</span>
+              <span data-i18n="rcpt_current_balance">वर्तमान खाता बकाया (Current Balance):</span>
+              <span id="rcpt-total-due" class="text-red-700">₹0.00</span>
             </div>
           </div>
 
@@ -1053,9 +1053,11 @@
         rcpt_amount: "रकम",
         rcpt_ledger_status: "📒 उधारी खाता स्थिति (Ledger)",
         rcpt_cust_slip: "ग्राहक रसीद",
+        rcpt_bill_due: "इस बिल का उधार (Bill Credit):",
         rcpt_prev_due: "पिछला बकाया (Previous Due):",
-        rcpt_added_due: "आज नया उधार जुड़ा (+):",
-        rcpt_total_due: "कुल नया बकाया (Total Due):",
+        rcpt_added_due: "इस बिल में उधार जुड़ा (+):",
+        rcpt_total_due: "वर्तमान कुल बकाया (Current Balance):",
+        rcpt_current_balance: "वर्तमान खाता बकाया (Current Balance):",
         rcpt_month_history: "🗓️ महीने-वार उधारी ब्रेकअप (Month-Wise History)",
         th_month: "महीना",
         th_credit: "उधार",
@@ -1278,9 +1280,11 @@
         rcpt_amount: "Amount",
         rcpt_ledger_status: "📒 Credit Ledger Status",
         rcpt_cust_slip: "Customer Slip",
+        rcpt_bill_due: "This Bill's Credit:",
         rcpt_prev_due: "Previous Due:",
-        rcpt_added_due: "Added Credit Today (+):",
-        rcpt_total_due: "Total New Balance Due:",
+        rcpt_added_due: "Added Credit in this Bill (+):",
+        rcpt_total_due: "Current Balance Due:",
+        rcpt_current_balance: "Current Balance Due:",
         rcpt_month_history: "🗓️ Month-Wise Credit History",
         th_month: "Month",
         th_credit: "Credit",
@@ -2035,13 +2039,21 @@
       // Customer Udhaar Ledger (Previous Due + New Due + Total Due)
       if (bill.customer_id) {
         ledgerBox.classList.remove('hidden');
-        const prevDue = Number(bill.previous_due !== undefined ? bill.previous_due : (bill.customer_previous_due || 0)) || 0;
+        const prevDue = Number(bill.previous_due !== undefined ? bill.previous_due : 0) || 0;
         const addedDue = Number(bill.due_amount) || 0;
-        const totalDue = Number(bill.total_current_due !== undefined ? bill.total_current_due : (prevDue + addedDue)) || 0;
+        const liveDue = Number(bill.current_balance_now !== undefined ? bill.current_balance_now : (bill.customer_current_due !== undefined ? bill.customer_current_due : (prevDue + addedDue))) || 0;
 
         document.getElementById('rcpt-prev-due').innerText = '₹' + prevDue.toFixed(2);
         document.getElementById('rcpt-current-added-due').innerText = '₹' + addedDue.toFixed(2);
-        document.getElementById('rcpt-total-due').innerText = '₹' + totalDue.toFixed(2);
+
+        const liveDueEl = document.getElementById('rcpt-total-due');
+        if (liveDue <= 0.001) {
+          liveDueEl.className = 'text-[#15803D] font-extrabold';
+          liveDueEl.innerText = '₹0.00 (' + (i18n[currentLang].no_due || 'चुकता ✓') + ')';
+        } else {
+          liveDueEl.className = 'text-red-700 font-extrabold';
+          liveDueEl.innerText = '₹' + liveDue.toFixed(2);
+        }
 
         // Month-wise breakdown table on receipt
         const monthBox = document.getElementById('rcpt-monthly-breakdown-box');

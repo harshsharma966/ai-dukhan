@@ -248,6 +248,7 @@ async def create_sales_bill(payload: CreateSalePayload):
         bill["previous_due"] = prev_due
         bill["customer_previous_due"] = prev_due
         bill["total_current_due"] = prev_due + float(bill["due_amount"])
+        bill["current_balance_now"] = prev_due + float(bill["due_amount"])
         bill["monthly_summary"] = []
 
         if payload.customer_id:
@@ -279,6 +280,10 @@ async def get_sales_bill_details(bill_id: int):
         
         # Attach customer monthly summary for re-print
         if bill.get("customer_id"):
+            c_info = customers.get_customer(bill["customer_id"])
+            current_live_due = float(c_info["current_due"]) if c_info else 0.0
+            bill["current_balance_now"] = current_live_due
+            bill["customer_current_due"] = current_live_due
             try:
                 stmt = customers.get_monthly_statement(bill["customer_id"])
                 bill["monthly_summary"] = stmt.get("months_summary", [])
