@@ -833,7 +833,11 @@
           <span data-i18n="payment_mode_title">भुगतान प्रकार:</span>
           <span id="rcpt-mode">CASH</span>
         </div>
-        <div id="rcpt-change-row" class="flex justify-between text-[#78716C]">
+        <div id="rcpt-tendered-row" class="hidden flex justify-between text-[#78716C]">
+          <span data-i18n="lbl_tendered">ग्राहक ने दिया:</span>
+          <span class="font-bold text-[#1C1917]" id="rcpt-tendered">₹0.00</span>
+        </div>
+        <div id="rcpt-change-row" class="hidden flex justify-between text-[#15803D] font-bold">
           <span data-i18n="lbl_change">छुट्टे वापस:</span>
           <span class="font-bold text-[#15803D]" id="rcpt-change">₹0.00</span>
         </div>
@@ -842,7 +846,7 @@
           <span id="rcpt-due">₹0.00</span>
         </div>
 
-        <!-- CUSTOMER UDHAAR LEDGER BREAKDOWN (MONTH-WISE) ON RECEIPT -->
+        <!-- CUSTOMER UDHAAR LEDGER BREAKDOWN ON RECEIPT -->
         <div id="rcpt-customer-ledger-box" class="hidden mt-3 pt-3 border-t-2 border-dashed border-[#E7E5E4] space-y-2">
           <div class="flex justify-between items-center text-[11px] font-bold text-[#B45309] uppercase">
             <span data-i18n="rcpt_ledger_status">📒 उधारी खाता स्थिति (Ledger)</span>
@@ -861,24 +865,6 @@
             <div class="flex justify-between text-[#1C1917] font-extrabold border-t border-[#FDE68A] pt-1 text-sm">
               <span data-i18n="rcpt_current_balance">वर्तमान खाता बकाया (Current Balance):</span>
               <span id="rcpt-total-due" class="text-red-700">₹0.00</span>
-            </div>
-          </div>
-
-          <!-- Month-Wise Udhaar Breakdown on Receipt -->
-          <div id="rcpt-monthly-breakdown-box" class="hidden space-y-1 pt-1">
-            <span class="text-[10px] font-bold text-[#78716C] uppercase tracking-wider block" data-i18n="rcpt_month_history">🗓️ महीने-वार उधारी ब्रेकअप (Month-Wise History)</span>
-            <div class="border border-[#E7E5E4] rounded overflow-hidden">
-              <table class="w-full text-[10px] text-left">
-                <thead class="bg-[#FAFAF7] text-[#78716C] border-b border-[#E7E5E4]">
-                  <tr>
-                    <th class="py-1 px-1.5" data-i18n="th_month">महीना</th>
-                    <th class="py-1 px-1.5 text-right" data-i18n="th_credit">उधार</th>
-                    <th class="py-1 px-1.5 text-right" data-i18n="th_deposit">जमा</th>
-                    <th class="py-1 px-1.5 text-right" data-i18n="th_balance">बाकी</th>
-                  </tr>
-                </thead>
-                <tbody id="rcpt-monthly-tbody" class="divide-y divide-[#E7E5E4] bg-white"></tbody>
-              </table>
             </div>
           </div>
         </div>
@@ -2018,14 +2004,28 @@
       else if (bill.payment_mode === 'PARTIAL') modeLabel = i18n[currentLang].mode_partial_lbl;
       document.getElementById('rcpt-mode').innerText = modeLabel;
 
+      const tenderRow = document.getElementById('rcpt-tendered-row');
       const changeRow = document.getElementById('rcpt-change-row');
       const dueRow = document.getElementById('rcpt-due-row');
       const ledgerBox = document.getElementById('rcpt-customer-ledger-box');
 
+      const recvAmt = Number(bill.amount_received) || 0;
+      const chgAmt = Number(bill.change_amount) || 0;
+
       if (bill.payment_mode === 'CASH') {
-        changeRow.classList.remove('hidden');
-        document.getElementById('rcpt-change').innerText = '₹' + (Number(bill.change_amount) || 0).toFixed(2);
+        if (chgAmt > 0) {
+          if (tenderRow) {
+            tenderRow.classList.remove('hidden');
+            document.getElementById('rcpt-tendered').innerText = '₹' + recvAmt.toFixed(2);
+          }
+          changeRow.classList.remove('hidden');
+          document.getElementById('rcpt-change').innerText = '₹' + chgAmt.toFixed(2);
+        } else {
+          if (tenderRow) tenderRow.classList.add('hidden');
+          changeRow.classList.add('hidden');
+        }
       } else {
+        if (tenderRow) tenderRow.classList.add('hidden');
         changeRow.classList.add('hidden');
       }
 
@@ -2036,7 +2036,7 @@
         dueRow.classList.add('hidden');
       }
 
-      // Customer Udhaar Ledger (Previous Due + New Due + Total Due)
+      // Customer Udhaar Ledger (Previous Due + New Due + Live Balance)
       if (bill.customer_id) {
         ledgerBox.classList.remove('hidden');
         const prevDue = Number(bill.previous_due !== undefined ? bill.previous_due : 0) || 0;
@@ -2053,27 +2053,6 @@
         } else {
           liveDueEl.className = 'text-red-700 font-extrabold';
           liveDueEl.innerText = '₹' + liveDue.toFixed(2);
-        }
-
-        // Month-wise breakdown table on receipt
-        const monthBox = document.getElementById('rcpt-monthly-breakdown-box');
-        const monthTbody = document.getElementById('rcpt-monthly-tbody');
-        monthTbody.innerHTML = '';
-
-        if (bill.monthly_summary && bill.monthly_summary.length > 0) {
-          monthBox.classList.remove('hidden');
-          bill.monthly_summary.forEach(m => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td class="py-1 px-1.5 font-medium text-[#1C1917]">${m.month_label}</td>
-              <td class="py-1 px-1.5 text-right font-mono text-amber-700 font-semibold">₹${m.credit_taken.toFixed(1)}</td>
-              <td class="py-1 px-1.5 text-right font-mono text-[#15803D] font-semibold">₹${m.paid_amount.toFixed(1)}</td>
-              <td class="py-1 px-1.5 text-right font-mono font-bold ${m.net_balance > 0 ? 'text-red-700' : 'text-[#78716C]'}">₹${m.net_balance.toFixed(1)}</td>
-            `;
-            monthTbody.appendChild(tr);
-          });
-        } else {
-          monthBox.classList.add('hidden');
         }
       } else {
         ledgerBox.classList.add('hidden');
