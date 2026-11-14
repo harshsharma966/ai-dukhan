@@ -1,23 +1,15 @@
 """
-modules/post_sale.py - Module 3: Post-Sale Operations.
-
-Handles:
-1. Udhaar Recovery (Customer pays old debt -> updates ledger & customer_payments)
-2. Product Return (Customer returns sold items -> Stock + & Refund / Due adjustment)
-3. Bill Cancellation (Cancelling mistaken bill -> Restores remaining stock & reverses ledger)
-
-All operations are executed within strict atomic transactions with double-operation prevention.
+modules/post_sale.py - Module 3: Post-Sale Operations with Multi-Shop isolation.
 """
 
 from database import db
 
 class PostSaleService:
     @staticmethod
-    def get_customer_due(customer_id: int) -> float:
-        """Customer ka current outstanding balance check karta hai."""
+    def get_customer_due(customer_id: int, shop_id: int = 1) -> float:
         with db.connection() as conn:
             row = conn.execute(
-                "SELECT current_due, name FROM customers WHERE id=?", (customer_id,)
+                "SELECT current_due, name FROM customers WHERE id=? AND shop_id=?", (customer_id, shop_id)
             ).fetchone()
             if not row:
                 raise ValueError(f"Customer ID {customer_id} nahi mila.")
@@ -25,13 +17,7 @@ class PostSaleService:
 
     @staticmethod
     def recover_udhaar(customer_id: int, amount: float, payment_mode: str = "CASH",
-                       notes: str = None) -> dict:
-        """
-        Customer se purani udhari prapt karna:
-        - customer_payments me record banata hai.
-        - customer ki current_due kam karta hai.
-        Formula: NewDue = CurrentDue - Payment
-        """
+                       notes: str = None, shop_id: int = 1) -> dict:
         if amount <= 0:
             raise ValueError("Payment amount zero se bada hona chahiye.")
         
@@ -41,7 +27,7 @@ class PostSaleService:
 
         with db.connection() as conn:
             cust = conn.execute(
-                "SELECT id, name, current_due FROM customers WHERE id=?", (customer_id,)
+                "SELECT id, name, mobile, current_due FROM customers WHERE id=? AND shop_id=?", (customer_id, shop_id)
             ).fetchone()
             if not cust:
                 raise ValueError(f"Customer ID {customer_id} nahi mila.")
@@ -57,36 +43,48 @@ class PostSaleService:
 
             # 1. Insert into customer_payments history
             cur = conn.execute("""
-                INSERT INTO customer_payments (customer_id, amount, payment_mode, notes)
-                VALUES (?, ?, ?, ?)
-            """, (customer_id, amount, payment_mode, notes))
+                INSERT INTO customer_payments (shop_id, customer_id, amount, payment_mode, notes)
+                VALUES (?, ?, ?, ?, ?)
+            """, (shop_id, customer_id, amount, payment_mode, notes))
             payment_id = cur.lastrowid
 
             # 2. Update customer balance
             new_due = round(current_due - amount, 2)
             conn.execute("""
-                UPDATE customers SET current_due=? WHERE id=?
-            """, (new_due, customer_id))
+                UPDATE customers SET current_due=? WHERE id=? AND shop_id=?
+            """, (new_due, customer_id, shop_id))
+
+            # Fetch payment record for exact timestamp
+            pay_record = conn.execute(
+                "SELECT payment_date FROM customer_payments WHERE id=?", (payment_id,)
+            ).fetchone()
+            payment_date_str = str(pay_record["payment_date"]) if pay_record and pay_record["payment_date"] else ""
+
+            # Fetch shop details
+            shop_record = conn.execute(
+                "SELECT shop_name, mobile, address FROM shops WHERE id=?", (shop_id,)
+            ).fetchone()
 
             return {
                 "payment_id": payment_id,
+                "receipt_number": f"PAY-{payment_id:05d}",
+                "customer_id": customer_id,
                 "customer_name": cust["name"],
+                "customer_mobile": cust["mobile"] or "",
                 "amount_paid": amount,
                 "payment_mode": payment_mode,
                 "previous_due": current_due,
-                "new_due": new_due
+                "new_due": new_due,
+                "payment_date": payment_date_str,
+                "notes": notes or "",
+                "shop_name": shop_record["shop_name"] if shop_record else "",
+                "shop_mobile": shop_record["mobile"] if shop_record else "",
+                "shop_address": shop_record["address"] if shop_record else ""
             }
 
     @staticmethod
     def return_product(sales_bill_id: int, return_items: list,
-                       refund_mode: str = "CASH", reason: str = None) -> dict:
-        """
-        Original bill se samaan wapas lena (Product Return):
-        return_items: [{'sales_item_id': 1, 'quantity': 1.0}]
-        - Double-return prevention: check karta hai ki sold quantity se zyada return na ho.
-        - Restores stock: products.current_stock += returned_quantity (Stock +).
-        - If DUE_ADJUSTMENT: reduces customer current_due.
-        """
+                       refund_mode: str = "CASH", reason: str = None, shop_id: int = 1) -> dict:
         if not return_items:
             raise ValueError("Return items ki list khali nahi ho sakti.")
 
@@ -96,7 +94,7 @@ class PostSaleService:
 
         with db.connection() as conn:
             bill = conn.execute(
-                "SELECT * FROM sales_bills WHERE id=?", (sales_bill_id,)
+                "SELECT * FROM sales_bills WHERE id=? AND shop_id=?", (sales_bill_id, shop_id)
             ).fetchone()
             if not bill:
                 raise ValueError(f"Sales Bill ID {sales_bill_id} nahi mila.")
@@ -115,7 +113,6 @@ class PostSaleService:
                 if ret_qty <= 0:
                     raise ValueError("Return quantity zero se badi honi chahiye.")
 
-                # Fetch original item
                 s_item = conn.execute(
                     "SELECT * FROM sales_items WHERE id=? AND sales_bill_id=?",
                     (s_item_id, sales_bill_id)
@@ -123,7 +120,6 @@ class PostSaleService:
                 if not s_item:
                     raise ValueError(f"Sales Item ID {s_item_id} is bill me nahi mila.")
 
-                # Check already returned quantity for this line item
                 already_ret = conn.execute("""
                     SELECT COALESCE(SUM(quantity), 0) FROM sales_return_items WHERE sales_item_id=?
                 """, (s_item_id,)).fetchone()[0]
@@ -150,14 +146,12 @@ class PostSaleService:
 
             total_refund = round(total_refund, 2)
 
-            # 1. Insert into sales_returns master
             cur = conn.execute("""
-                INSERT INTO sales_returns (sales_bill_id, refund_amount, refund_mode, reason)
-                VALUES (?, ?, ?, ?)
-            """, (sales_bill_id, total_refund, refund_mode, reason))
+                INSERT INTO sales_returns (shop_id, sales_bill_id, refund_amount, refund_mode, reason)
+                VALUES (?, ?, ?, ?, ?)
+            """, (shop_id, sales_bill_id, total_refund, refund_mode, reason))
             return_id = cur.lastrowid
 
-            # 2. Insert items & Restore Inventory Stock (Stock +)
             for pi in processed_items:
                 conn.execute("""
                     INSERT INTO sales_return_items
@@ -165,21 +159,19 @@ class PostSaleService:
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (return_id, pi["sales_item_id"], pi["product_id"], pi["quantity"], pi["refund_price"], pi["line_total"]))
 
-                # Stock restoration
                 conn.execute("""
                     UPDATE products
                     SET current_stock = current_stock + ?,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE id=?
-                """, (pi["quantity"], pi["product_id"]))
+                    WHERE id=? AND shop_id=?
+                """, (pi["quantity"], pi["product_id"], shop_id))
 
-            # 3. If DUE_ADJUSTMENT, adjust customer current_due
             if refund_mode == 'DUE_ADJUSTMENT' and bill["customer_id"]:
                 conn.execute("""
                     UPDATE customers
                     SET current_due = MAX(0.0, current_due - ?)
-                    WHERE id=?
-                """, (total_refund, bill["customer_id"]))
+                    WHERE id=? AND shop_id=?
+                """, (total_refund, bill["customer_id"], shop_id))
 
             return {
                 "return_id": return_id,
@@ -190,17 +182,10 @@ class PostSaleService:
             }
 
     @staticmethod
-    def cancel_bill(sales_bill_id: int, reason: str = None) -> dict:
-        """
-        Confirmed sale ko poora reverse karna (Bill Cancellation):
-        - Double-cancellation check.
-        - Restores ONLY remaining stock (agar pehle koi partial return hua tha toh duplicate stock add nahi hoga).
-        - Reverses customer due (agar bill me udhaar tha).
-        - Bill status marked 'CANCELLED'.
-        """
+    def cancel_bill(sales_bill_id: int, reason: str = None, shop_id: int = 1) -> dict:
         with db.connection() as conn:
             bill = conn.execute(
-                "SELECT * FROM sales_bills WHERE id=?", (sales_bill_id,)
+                "SELECT * FROM sales_bills WHERE id=? AND shop_id=?", (sales_bill_id, shop_id)
             ).fetchone()
             if not bill:
                 raise ValueError(f"Sales Bill ID {sales_bill_id} nahi mila.")
@@ -215,7 +200,6 @@ class PostSaleService:
 
             restored_summary = []
             for item in items:
-                # Check agar is item par pehle koi partial return hua tha
                 already_ret = conn.execute("""
                     SELECT COALESCE(SUM(quantity), 0) FROM sales_return_items WHERE sales_item_id=?
                 """, (item["id"],)).fetchone()[0]
@@ -227,28 +211,26 @@ class PostSaleService:
                         UPDATE products
                         SET current_stock = current_stock + ?,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE id=?
-                    """, (remaining_to_restore, item["product_id"]))
+                        WHERE id=? AND shop_id=?
+                    """, (remaining_to_restore, item["product_id"], shop_id))
 
                 restored_summary.append({
                     "product_name": item["product_name"],
                     "restored_quantity": remaining_to_restore
                 })
 
-            # Reversing customer due if applicable
             due_reversed = 0.0
             if bill["customer_id"] and bill["due_amount"] > 0:
                 due_reversed = bill["due_amount"]
                 conn.execute("""
                     UPDATE customers
                     SET current_due = MAX(0.0, current_due - ?)
-                    WHERE id=?
-                """, (due_reversed, bill["customer_id"]))
+                    WHERE id=? AND shop_id=?
+                """, (due_reversed, bill["customer_id"], shop_id))
 
-            # Mark bill as CANCELLED
             conn.execute("""
-                UPDATE sales_bills SET status='CANCELLED' WHERE id=?
-            """, (sales_bill_id,))
+                UPDATE sales_bills SET status='CANCELLED' WHERE id=? AND shop_id=?
+            """, (sales_bill_id, shop_id))
 
             return {
                 "sales_bill_id": sales_bill_id,
@@ -259,4 +241,3 @@ class PostSaleService:
 
 
 post_sale = PostSaleService()
-

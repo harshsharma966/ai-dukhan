@@ -1,53 +1,356 @@
 """
-database.py - SQLite database layer for Kirana Shop AI.
+database.py - Database layer supporting Multi-Shop / Multi-Tenant SaaS on PostgreSQL.
 
-Module 1: Purchase / Stock IN (Supplier is optional, Stock increases ONLY on confirm_purchase)
-Module 2: Customer Billing / Stock OUT (Walk-in supported, Stock decreases ONLY on confirm_sale)
-
-Production-ready class architecture with transactional safety, constraints, and separate schema.sql.
+Features:
+- Configured via DATABASE_URL or PG_* credentials in .env
+- Full transactional safety and constraint checks
+- Multi-shop data isolation (shop_id filtering across all tables)
+- Safe parameter escaping and returning ID capture for PostgreSQL
 """
 
-import sqlite3
+import os
 from pathlib import Path
 from datetime import datetime
 from contextlib import contextmanager
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+import psycopg2
+import psycopg2.extras
+
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "kirana_shop.db"
-SCHEMA_PATH = BASE_DIR / "schema.sql"
+SCHEMA_POSTGRES = BASE_DIR / "schema_postgres.sql"
+
+
+class PostgresRow(dict):
+    """Row wrapper allowing both key access (row['name']) and numeric index (row[0])."""
+    def __init__(self, d):
+        super().__init__(d if d is not None else {})
+        self._keys = list(self.keys())
+
+    def __getitem__(self, item):
+        if isinstance(item, int):
+            return super().__getitem__(self._keys[item])
+        return super().__getitem__(item)
+
+
+class PostgresCursorWrapper:
+    def __init__(self, cursor):
+        self.cursor = cursor
+        self.lastrowid = None
+
+    def execute(self, sql, params=None):
+        sql = sql.strip()
+        # Escape literal % to %% for psycopg2 string formatting, then convert SQLite style ? to %s
+        converted_sql = sql.replace('%', '%%').replace('?', '%s')
+        
+        # Capture lastrowid on INSERT queries if not already requesting RETURNING
+        upper_sql = converted_sql.upper()
+        is_insert = upper_sql.startswith("INSERT INTO") or " INSERT INTO " in upper_sql
+        has_returning = "RETURNING" in upper_sql
+        
+        if is_insert and not has_returning:
+            converted_sql += " RETURNING id"
+            self.cursor.execute(converted_sql, params or ())
+            try:
+                ret = self.cursor.fetchone()
+                if ret:
+                    if isinstance(ret, dict):
+                        self.lastrowid = ret.get("id")
+                    elif hasattr(ret, "__getitem__"):
+                        self.lastrowid = ret[0]
+            except Exception:
+                self.lastrowid = None
+            return self
+
+        self.cursor.execute(converted_sql, params or ())
+        return self
+
+    def executemany(self, sql, seq_of_params):
+        converted_sql = sql.replace('%', '%%').replace('?', '%s')
+        self.cursor.executemany(converted_sql, seq_of_params)
+        return self
+
+    def fetchone(self):
+        row = self.cursor.fetchone()
+        return PostgresRow(row) if row is not None else None
+
+    def fetchall(self):
+        rows = self.cursor.fetchall()
+        return [PostgresRow(r) for r in rows]
+
+    @property
+    def rowcount(self):
+        return self.cursor.rowcount
+
+
+class PostgresConnectionWrapper:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def cursor(self):
+        return PostgresCursorWrapper(self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor))
+
+    def execute(self, sql, params=None):
+        cur = self.cursor()
+        return cur.execute(sql, params)
+
+    def executemany(self, sql, seq_of_params):
+        cur = self.cursor()
+        return cur.executemany(sql, seq_of_params)
+
+    def executescript(self, script):
+        with self.conn.cursor() as cur:
+            cur.execute(script)
+
+    def commit(self):
+        self.conn.commit()
+
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        self.conn.close()
 
 
 class Database:
-    def __init__(self, db_path=DB_PATH, schema_path=SCHEMA_PATH):
-        self.db_path = Path(db_path)
-        self.schema_path = Path(schema_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+    def __init__(self):
+        self.schema_postgres = Path(SCHEMA_POSTGRES)
+        self.db_type = "postgres"
+        self.pg_config = None
+
+        self._configure_engine()
         self.initialize()
+
+    def _configure_engine(self):
+        """Sets up PostgreSQL connection using .env configuration."""
+        db_url_env = os.getenv("DATABASE_URL", "").strip()
+
+        if db_url_env:
+            if db_url_env.startswith("postgres://"):
+                db_url_env = db_url_env.replace("postgres://", "postgresql://", 1)
+            self.pg_config = {"dsn": db_url_env}
+        else:
+            self.pg_config = {
+                "host": os.getenv("PG_HOST", "localhost"),
+                "port": int(os.getenv("PG_PORT", 5433)),
+                "database": os.getenv("PG_DATABASE", "kirana_shop"),
+                "user": os.getenv("PG_USER", "postgres"),
+                "password": os.getenv("PG_PASSWORD", "postgres")
+            }
+
+        try:
+            conn = self._get_raw_pg_connection()
+            conn.close()
+            target = self.pg_config.get("database") or self.pg_config.get("dsn", "")
+            port = self.pg_config.get("port", "")
+            print(f"🐘 [Database] Connected successfully to PostgreSQL ({target} on port {port})")
+        except Exception as e:
+            raise ConnectionError(
+                f"❌ [Database] PostgreSQL connection failed: {e}\n"
+                f"Please ensure PostgreSQL server is running and .env credentials are correct."
+            )
+
+    def _get_raw_pg_connection(self):
+        if "dsn" in self.pg_config:
+            return psycopg2.connect(self.pg_config["dsn"], connect_timeout=5)
+        return psycopg2.connect(**self.pg_config, connect_timeout=5)
 
     @contextmanager
     def connection(self):
-        conn = sqlite3.connect(self.db_path, timeout=30)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
+        raw_conn = self._get_raw_pg_connection()
+        wrapper = PostgresConnectionWrapper(raw_conn)
         try:
-            yield conn
-            conn.commit()
+            yield wrapper
+            wrapper.commit()
         except Exception:
-            conn.rollback()
+            wrapper.rollback()
             raise
         finally:
-            conn.close()
+            wrapper.close()
 
     def initialize(self):
-        """Alag schema.sql file se SQL script padh kar tables banata hai."""
-        if not self.schema_path.exists():
-            raise FileNotFoundError(f"Schema file not found at: {self.schema_path}")
-            
-        with open(self.schema_path, "r", encoding="utf-8") as f:
+        """Initializes tables and ensures Shop #1 exists in PostgreSQL."""
+        if not self.schema_postgres.exists():
+            return
+        with open(self.schema_postgres, "r", encoding="utf-8") as f:
             schema_sql = f.read()
 
         with self.connection() as conn:
-            conn.executescript(schema_sql)
+            # 1. First ensure schema is applied
+            try:
+                conn.executescript(schema_sql)
+            except Exception:
+                conn.rollback()
+
+            # 2. Add shop_id to any pre-existing tables if upgrading
+            tables_to_migrate = ["products", "customers", "purchase_bills", "sales_bills", "customer_payments", "sales_returns"]
+            for tbl in tables_to_migrate:
+                try:
+                    conn.execute(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS shop_id INTEGER REFERENCES shops(id) DEFAULT 1;")
+                except Exception:
+                    conn.rollback()
+                try:
+                    conn.execute(f"UPDATE {tbl} SET shop_id = 1 WHERE shop_id IS NULL;")
+                except Exception:
+                    conn.rollback()
+
+            # Ensure proper PostgreSQL constraints
+            try:
+                conn.execute("ALTER TABLE products DROP CONSTRAINT IF EXISTS products_barcode_key;")
+            except Exception:
+                conn.rollback()
+            try:
+                conn.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;")
+            except Exception:
+                conn.rollback()
+            try:
+                conn.execute("ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_mobile_key;")
+            except Exception:
+                conn.rollback()
+            try:
+                conn.execute("ALTER TABLE sales_bills DROP CONSTRAINT IF EXISTS sales_bills_bill_number_key;")
+            except Exception:
+                conn.rollback()
+
+            # 4. Staff table migration + sales_bills staff columns
+            try:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS staff (
+                        id SERIAL PRIMARY KEY,
+                        shop_id INTEGER NOT NULL REFERENCES shops(id),
+                        name VARCHAR(255) NOT NULL,
+                        mobile VARCHAR(15) NOT NULL,
+                        pin_hash VARCHAR(255) NOT NULL,
+                        role VARCHAR(20) NOT NULL DEFAULT 'cashier' CHECK(role IN ('owner', 'cashier')),
+                        is_active BOOLEAN DEFAULT TRUE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+            except Exception:
+                conn.rollback()
+            try:
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_staff_shop ON staff(shop_id);")
+                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_shop_mobile ON staff(shop_id, mobile);")
+            except Exception:
+                conn.rollback()
+            try:
+                conn.execute("ALTER TABLE sales_bills ADD COLUMN IF NOT EXISTS created_by_staff_id INTEGER REFERENCES staff(id);")
+                conn.execute("ALTER TABLE sales_bills ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(255);")
+            except Exception:
+                conn.rollback()
+
+            # 5. Ensure Shop 1 exists
+            try:
+                existing_shop = conn.execute("SELECT id FROM shops WHERE id = 1").fetchone()
+                if not existing_shop:
+                    conn.execute("""
+                        INSERT INTO shops (id, shop_name, owner_name, mobile, password_hash, address)
+                        VALUES (1, 'किराना दुकान AI', 'दुकानदार', '9756770000', '1234', 'मेन मार्केट, नियर बस स्टैंड')
+                    """)
+                conn.execute("SELECT setval(pg_get_serial_sequence('shops', 'id'), COALESCE(MAX(id), 1)) FROM shops;")
+            except Exception:
+                conn.rollback()
+
+    # =========================================================
+    # MODULE 0: SHOPS & MULTI-TENANT AUTH
+    # =========================================================
+
+    def get_shop(self, shop_id: int):
+        with self.connection() as conn:
+            row = conn.execute("SELECT * FROM shops WHERE id = ?", (shop_id,)).fetchone()
+            return dict(row) if row else None
+
+    def get_shop_by_mobile(self, mobile: str):
+        with self.connection() as conn:
+            row = conn.execute("SELECT * FROM shops WHERE mobile = ?", (mobile.strip(),)).fetchone()
+            return dict(row) if row else None
+
+    def create_shop(self, shop_name: str, owner_name: str, mobile: str, password: str = None, address: str = None):
+        with self.connection() as conn:
+            cur = conn.execute("""
+                INSERT INTO shops (shop_name, owner_name, mobile, password_hash, address)
+                VALUES (?, ?, ?, ?, ?)
+            """, (shop_name.strip(), owner_name.strip(), mobile.strip(), password, address))
+            return cur.lastrowid
+
+    def update_shop(self, shop_id: int, shop_name: str = None, owner_name: str = None, address: str = None):
+        with self.connection() as conn:
+            conn.execute("""
+                UPDATE shops
+                SET shop_name = COALESCE(?, shop_name),
+                    owner_name = COALESCE(?, owner_name),
+                    address = COALESCE(?, address)
+                WHERE id = ?
+            """, (shop_name, owner_name, address, shop_id))
+            return self.get_shop(shop_id)
+
+    # =========================================================
+    # MODULE 0.5: STAFF MANAGEMENT (कर्मचारी प्रबंधन)
+    # =========================================================
+
+    def add_staff(self, shop_id: int, name: str, mobile: str, pin: str, role: str = 'cashier'):
+        if role not in ('owner', 'cashier'):
+            raise ValueError("Role must be 'owner' or 'cashier'")
+        with self.connection() as conn:
+            cur = conn.execute("""
+                INSERT INTO staff (shop_id, name, mobile, pin_hash, role)
+                VALUES (?, ?, ?, ?, ?)
+            """, (shop_id, name.strip(), mobile.strip(), pin.strip(), role))
+            return cur.lastrowid
+
+    def get_staff(self, staff_id: int, shop_id: int):
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM staff WHERE id = ? AND shop_id = ?", (staff_id, shop_id)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_staff_by_mobile(self, mobile: str, shop_id: int):
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM staff WHERE mobile = ? AND shop_id = ? AND is_active IS NOT FALSE",
+                (mobile.strip(), shop_id)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_staff_by_mobile_any(self, mobile: str):
+        with self.connection() as conn:
+            row = conn.execute("""
+                SELECT s.*, sh.shop_name, sh.owner_name, sh.address as shop_address 
+                FROM staff s 
+                JOIN shops sh ON sh.id = s.shop_id 
+                WHERE s.mobile = ? AND s.is_active IS NOT FALSE 
+                ORDER BY s.id DESC
+            """, (mobile.strip(),)).fetchone()
+            return dict(row) if row else None
+
+    def get_all_staff(self, shop_id: int):
+        with self.connection() as conn:
+            rows = conn.execute(
+                "SELECT id, name, mobile, role, is_active, created_at FROM staff WHERE shop_id = ? ORDER BY id",
+                (shop_id,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def update_staff(self, staff_id: int, shop_id: int, name: str = None, pin: str = None, is_active: bool = None):
+        with self.connection() as conn:
+            if name:
+                conn.execute("UPDATE staff SET name = ? WHERE id = ? AND shop_id = ?", (name.strip(), staff_id, shop_id))
+            if pin:
+                conn.execute("UPDATE staff SET pin_hash = ? WHERE id = ? AND shop_id = ?", (pin.strip(), staff_id, shop_id))
+            if is_active is not None:
+                conn.execute("UPDATE staff SET is_active = ? WHERE id = ? AND shop_id = ?", (is_active, staff_id, shop_id))
+            return self.get_staff(staff_id, shop_id)
+
+    def delete_staff(self, staff_id: int, shop_id: int):
+        with self.connection() as conn:
+            conn.execute("UPDATE staff SET is_active = FALSE WHERE id = ? AND shop_id = ?", (staff_id, shop_id))
+            return True
 
     # =========================================================
     # MODULE 1: PRODUCTS & PURCHASE (STOCK IN)
@@ -55,7 +358,7 @@ class Database:
 
     def add_product(self, name, unit="packet", cost_price=0,
                     selling_price=0, current_stock=0, hindi_name=None,
-                    low_stock_limit=5, barcode=None):
+                    low_stock_limit=5, barcode=None, shop_id=1):
         name = name.strip()
         if not name:
             raise ValueError("Product name is required.")
@@ -63,22 +366,21 @@ class Database:
         with self.connection() as conn:
             cur = conn.execute("""
                 INSERT INTO products
-                (name, hindi_name, unit, current_stock, cost_price,
+                (shop_id, name, hindi_name, unit, current_stock, cost_price,
                  selling_price, low_stock_limit, barcode)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (name, hindi_name, unit, current_stock, cost_price,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (shop_id, name, hindi_name, unit, current_stock, cost_price,
                   selling_price, low_stock_limit, barcode))
             return cur.lastrowid
 
-    def get_product(self, product_id):
+    def get_product(self, product_id, shop_id=1):
         with self.connection() as conn:
             row = conn.execute(
-                "SELECT * FROM products WHERE id=?", (product_id,)
+                "SELECT * FROM products WHERE id=? AND shop_id=?", (product_id, shop_id)
             ).fetchone()
             return dict(row) if row else None
 
-    def update_product_limit(self, product_id: int, low_stock_limit: float):
-        """Dukandar kisi bhi product ki alert limit update kar sakta hai."""
+    def update_product_limit(self, product_id: int, low_stock_limit: float, shop_id=1):
         if low_stock_limit < 0:
             raise ValueError("Limit negative nahi ho sakti.")
         with self.connection() as conn:
@@ -86,14 +388,13 @@ class Database:
                 UPDATE products
                 SET low_stock_limit = ?,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (low_stock_limit, product_id))
+                WHERE id = ? AND shop_id = ?
+            """, (low_stock_limit, product_id, shop_id))
             return True
 
-    def update_product_price(self, product_id: int, cost_price: float = None, selling_price: float = None):
-        """Dukandar kisi bhi product ka purchase rate (CP) ya selling rate (SP) update kar sakta hai."""
+    def update_product_price(self, product_id: int, cost_price: float = None, selling_price: float = None, shop_id=1):
         with self.connection() as conn:
-            prod = conn.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone()
+            prod = conn.execute("SELECT * FROM products WHERE id=? AND shop_id=?", (product_id, shop_id)).fetchone()
             if not prod:
                 raise ValueError("Product nahi mila.")
 
@@ -108,77 +409,93 @@ class Database:
                 SET cost_price = ?,
                     selling_price = ?,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (cp, sp, product_id))
-            return dict(conn.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone())
+                WHERE id = ? AND shop_id = ?
+            """, (cp, sp, product_id, shop_id))
+            return dict(conn.execute("SELECT * FROM products WHERE id=? AND shop_id=?", (product_id, shop_id)).fetchone())
 
-    def find_product_by_name(self, name):
-        """Exact match check karta hai name ke basis par."""
+    def delete_product(self, product_id: int, shop_id: int = 1) -> bool:
+        with self.connection() as conn:
+            prod = conn.execute("SELECT id FROM products WHERE id=? AND shop_id=?", (product_id, shop_id)).fetchone()
+            if not prod:
+                return False
+
+            sales_row = conn.execute("SELECT COUNT(*) as cnt FROM sales_items WHERE product_id=?", (product_id,)).fetchone()
+            s_cnt = sales_row["cnt"] if sales_row else 0
+            purch_row = conn.execute("SELECT COUNT(*) as cnt FROM purchase_items WHERE product_id=?", (product_id,)).fetchone()
+            p_cnt = purch_row["cnt"] if purch_row else 0
+
+            if s_cnt == 0 and p_cnt == 0:
+                conn.execute("DELETE FROM products WHERE id=? AND shop_id=?", (product_id, shop_id))
+            else:
+                conn.execute("UPDATE products SET is_active=FALSE, current_stock=0, updated_at=CURRENT_TIMESTAMP WHERE id=? AND shop_id=?", (product_id, shop_id))
+            return True
+
+    def find_product_by_name(self, name, shop_id=1):
         with self.connection() as conn:
             row = conn.execute("""
                 SELECT * FROM products
-                WHERE LOWER(name)=LOWER(?) LIMIT 1
-            """, (name.strip(),)).fetchone()
+                WHERE LOWER(name)=LOWER(?) AND shop_id=? AND is_active IS NOT FALSE LIMIT 1
+            """, (name.strip(), shop_id)).fetchone()
             return dict(row) if row else None
 
-    def match_product_smart(self, raw_name):
-        """
-        Smart matching (Exact -> Substring -> Word tokens / Hindi match)
-        Taaki parcha par 'Tata Salt 1kg' ya 'टाटा नमक 1kg' likha ho toh bhi purana item mil jaye.
-        """
+    def match_product_smart(self, raw_name, shop_id=1):
         raw_name = raw_name.strip()
         with self.connection() as conn:
-            # 1. Exact match pehle try karo
+            # 1. Exact match
             row = conn.execute("""
                 SELECT * FROM products
-                WHERE LOWER(name)=LOWER(?) OR LOWER(hindi_name)=LOWER(?)
+                WHERE (LOWER(name)=LOWER(?) OR LOWER(hindi_name)=LOWER(?)) AND shop_id=? AND is_active IS NOT FALSE
                 LIMIT 1
-            """, (raw_name, raw_name)).fetchone()
+            """, (raw_name, raw_name, shop_id)).fetchone()
             if row:
                 return dict(row)
 
-            # 2. Substring match (e.g. 'Chini' matches 'Sugar / Chini (Loose)')
+            # 2. Substring match
             pattern = f"%{raw_name}%"
             row = conn.execute("""
                 SELECT * FROM products
-                WHERE name LIKE ? OR hindi_name LIKE ?
+                WHERE (LOWER(name) LIKE LOWER(?) OR LOWER(hindi_name) LIKE LOWER(?)) AND shop_id=? AND is_active IS NOT FALSE
                 LIMIT 1
-            """, (pattern, pattern)).fetchone()
+            """, (pattern, pattern, shop_id)).fetchone()
             if row:
                 return dict(row)
 
-            # 3. Token-based / Keyword match (e.g. 'टाटा नमक 1kg' matches 'टाटा नमक' or 'Tata Salt')
+            # 3. Token-based / Keyword match
             words = [w for w in raw_name.replace('/', ' ').split() if len(w) > 2]
             for w in words:
                 p = f"%{w}%"
                 row = conn.execute("""
                     SELECT * FROM products
-                    WHERE name LIKE ? OR hindi_name LIKE ?
+                    WHERE (LOWER(name) LIKE LOWER(?) OR LOWER(hindi_name) LIKE LOWER(?)) AND shop_id=? AND is_active IS NOT FALSE
                     LIMIT 1
-                """, (p, p)).fetchone()
+                """, (p, p, shop_id)).fetchone()
                 if row:
                     return dict(row)
 
             return None
 
-    def search_products(self, text):
+    def search_products(self, text, shop_id=1):
         pattern = f"%{text.strip()}%"
         with self.connection() as conn:
             rows = conn.execute("""
                 SELECT * FROM products
-                WHERE name LIKE ? OR hindi_name LIKE ? OR barcode LIKE ?
+                WHERE (LOWER(name) LIKE LOWER(?) OR LOWER(hindi_name) LIKE LOWER(?) OR barcode LIKE ?)
+                  AND shop_id=?
+                  AND is_active IS NOT FALSE
                 ORDER BY name LIMIT 50
-            """, (pattern, pattern, pattern)).fetchall()
+            """, (pattern, pattern, pattern, shop_id)).fetchall()
             return [dict(row) for row in rows]
 
     # -------------------- PURCHASE BILL / PARCHA --------------------
 
-    def create_purchase_bill(self, image_path=None, bill_date=None):
+    def create_purchase_bill(self, image_path=None, bill_date=None, shop_id=1):
+        if not bill_date:
+            bill_date = datetime.now().strftime("%Y-%m-%d")
         with self.connection() as conn:
             cur = conn.execute("""
-                INSERT INTO purchase_bills (image_path, bill_date)
-                VALUES (?, COALESCE(?, DATE('now','localtime')))
-            """, (image_path, bill_date))
+                INSERT INTO purchase_bills (shop_id, image_path, bill_date)
+                VALUES (?, ?, ?)
+            """, (shop_id, image_path, bill_date))
             return cur.lastrowid
 
     def add_purchase_item(self, purchase_bill_id, raw_name, quantity,
@@ -194,7 +511,7 @@ class Database:
 
         with self.connection() as conn:
             bill = conn.execute(
-                "SELECT status FROM purchase_bills WHERE id=?",
+                "SELECT status, shop_id FROM purchase_bills WHERE id=?",
                 (purchase_bill_id,)
             ).fetchone()
             if not bill:
@@ -225,10 +542,10 @@ class Database:
             WHERE id=?
         """, (bill_id, bill_id))
 
-    def get_purchase_bill(self, bill_id):
+    def get_purchase_bill(self, bill_id, shop_id=1):
         with self.connection() as conn:
             bill = conn.execute(
-                "SELECT * FROM purchase_bills WHERE id=?", (bill_id,)
+                "SELECT * FROM purchase_bills WHERE id=? AND shop_id=?", (bill_id, shop_id)
             ).fetchone()
             if not bill:
                 return None
@@ -243,16 +560,10 @@ class Database:
             result["items"] = [dict(item) for item in items]
             return result
 
-    def confirm_purchase(self, bill_id):
-        """
-        Atomic operation:
-        - Existing product: current_stock += purchased quantity.
-        - New product: create product with purchased quantity as opening stock.
-        - Mark bill CONFIRMED.
-        """
+    def confirm_purchase(self, bill_id, shop_id=1):
         with self.connection() as conn:
             bill = conn.execute(
-                "SELECT * FROM purchase_bills WHERE id=?", (bill_id,)
+                "SELECT * FROM purchase_bills WHERE id=? AND shop_id=?", (bill_id, shop_id)
             ).fetchone()
             if not bill:
                 raise ValueError("Purchase bill not found.")
@@ -269,11 +580,10 @@ class Database:
             for item in items:
                 product_id = item["product_id"]
 
-                # Safeguard: agar product_id None hai, pehle check karo ki is naam ka product pehle se toh nahi hai
                 if product_id is None:
                     existing_prod = conn.execute(
-                        "SELECT id FROM products WHERE LOWER(name) = LOWER(?)",
-                        (item["raw_name"].strip(),)
+                        "SELECT id FROM products WHERE LOWER(name) = LOWER(?) AND shop_id=?",
+                        (item["raw_name"].strip(), shop_id)
                     ).fetchone()
                     if existing_prod:
                         product_id = existing_prod["id"]
@@ -295,9 +605,9 @@ class Database:
 
                     cur = conn.execute("""
                         INSERT INTO products
-                        (name, unit, current_stock, cost_price, selling_price)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (item["raw_name"], item["unit"], item["quantity"],
+                        (shop_id, name, unit, current_stock, cost_price, selling_price)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (shop_id, item["raw_name"], item["unit"], item["quantity"],
                           item["cost_price"], item["selling_price"]))
                     product_id = cur.lastrowid
                     conn.execute(
@@ -306,7 +616,7 @@ class Database:
                     )
                 else:
                     exists = conn.execute(
-                        "SELECT id FROM products WHERE id=?", (product_id,)
+                        "SELECT id FROM products WHERE id=? AND shop_id=?", (product_id, shop_id)
                     ).fetchone()
                     if not exists:
                         raise ValueError(f"Product ID {product_id} does not exist.")
@@ -318,22 +628,22 @@ class Database:
                             selling_price = COALESCE(?, selling_price),
                             unit = ?,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE id=?
+                        WHERE id=? AND shop_id=?
                     """, (item["quantity"], item["cost_price"],
-                          item["selling_price"], item["unit"], product_id))
+                          item["selling_price"], item["unit"], product_id, shop_id))
 
             conn.execute("""
                 UPDATE purchase_bills
                 SET status='CONFIRMED', confirmed_at=CURRENT_TIMESTAMP
-                WHERE id=?
-            """, (bill_id,))
+                WHERE id=? AND shop_id=?
+            """, (bill_id, shop_id))
 
-    def cancel_draft_purchase(self, bill_id):
+    def cancel_draft_purchase(self, bill_id, shop_id=1):
         with self.connection() as conn:
             cur = conn.execute("""
                 UPDATE purchase_bills SET status='CANCELLED'
-                WHERE id=? AND status='DRAFT'
-            """, (bill_id,))
+                WHERE id=? AND status='DRAFT' AND shop_id=?
+            """, (bill_id, shop_id))
             if cur.rowcount == 0:
                 raise ValueError("Bill not found or is not in DRAFT status.")
 
@@ -341,7 +651,7 @@ class Database:
     # MODULE 2: CUSTOMERS & SALES (STOCK OUT)
     # =========================================================
 
-    def add_customer(self, name, mobile=None):
+    def add_customer(self, name, mobile=None, shop_id=1):
         name = name.strip()
         if not name:
             raise ValueError("Customer name is required.")
@@ -349,38 +659,35 @@ class Database:
 
         with self.connection() as conn:
             cur = conn.execute("""
-                INSERT INTO customers (name, mobile)
-                VALUES (?, ?)
-            """, (name, mobile))
+                INSERT INTO customers (shop_id, name, mobile)
+                VALUES (?, ?, ?)
+            """, (shop_id, name, mobile))
             return cur.lastrowid
 
-    def get_customer(self, customer_id):
+    def get_customer(self, customer_id, shop_id=1):
         with self.connection() as conn:
             row = conn.execute(
-                "SELECT * FROM customers WHERE id=?", (customer_id,)
+                "SELECT * FROM customers WHERE id=? AND shop_id=?", (customer_id, shop_id)
             ).fetchone()
             return dict(row) if row else None
 
-    def find_customer_by_mobile(self, mobile):
+    def find_customer_by_mobile(self, mobile, shop_id=1):
         with self.connection() as conn:
             row = conn.execute(
-                "SELECT * FROM customers WHERE mobile=?", (mobile.strip(),)
+                "SELECT * FROM customers WHERE mobile=? AND shop_id=?", (mobile.strip(), shop_id)
             ).fetchone()
             return dict(row) if row else None
 
-    def get_all_customers(self):
+    def get_all_customers(self, shop_id=1):
         with self.connection() as conn:
             rows = conn.execute(
-                "SELECT * FROM customers ORDER BY name"
+                "SELECT * FROM customers WHERE shop_id=? ORDER BY name", (shop_id,)
             ).fetchall()
             return [dict(row) for row in rows]
 
     def create_sales_bill(self, customer_id=None, payment_mode="CASH",
-                          amount_received=0, discount=0, bill_number=None):
-        """
-        Creates a new sales bill (DRAFT).
-        customer_id is None for Quick Walk-in customers.
-        """
+                          amount_received=0, discount=0, bill_number=None, shop_id=1,
+                          created_by_staff_id=None, created_by_name=None):
         if not bill_number:
             now_str = datetime.now().strftime("%Y%m%d%H%M%S%f")
             bill_number = f"BILL-{now_str}"
@@ -392,31 +699,26 @@ class Database:
         with self.connection() as conn:
             cur = conn.execute("""
                 INSERT INTO sales_bills
-                (bill_number, customer_id, total_amount, discount, final_amount,
-                 payment_mode, amount_received, paid_amount, change_amount, due_amount)
-                VALUES (?, ?, 0, 0, 0, ?, ?, 0, 0, 0)
-            """, (bill_number, customer_id, payment_mode, amount_received))
+                (shop_id, bill_number, customer_id, total_amount, discount, final_amount,
+                 payment_mode, amount_received, paid_amount, change_amount, due_amount,
+                 created_by_staff_id, created_by_name)
+                VALUES (?, ?, ?, 0, 0, 0, ?, ?, 0, 0, 0, ?, ?)
+            """, (shop_id, bill_number, customer_id, payment_mode, amount_received, created_by_staff_id, created_by_name))
             return cur.lastrowid
 
     def add_sales_item(self, sales_bill_id, product_id, quantity, selling_price=None):
-        """
-        Adds an item to the sales bill cart.
-        Snapshots product_name and unit for invoice stability.
-        """
         if quantity <= 0:
             raise ValueError("Quantity must be greater than zero.")
 
         with self.connection() as conn:
-            # Check bill status
             bill = conn.execute(
-                "SELECT status FROM sales_bills WHERE id=?", (sales_bill_id,)
+                "SELECT status, shop_id FROM sales_bills WHERE id=?", (sales_bill_id,)
             ).fetchone()
             if not bill:
                 raise ValueError("Sales bill not found.")
             if bill["status"] != "DRAFT":
                 raise ValueError("Only DRAFT sales bills can be edited.")
 
-            # Get product details
             product = conn.execute(
                 "SELECT * FROM products WHERE id=?", (product_id,)
             ).fetchone()
@@ -440,12 +742,10 @@ class Database:
 
     @staticmethod
     def _recalculate_sales_bill(conn, sales_bill_id, discount=None, payment_mode=None, amount_received=None):
-        """Recalculates totals, paid, change, and due amounts based on payment mode."""
         bill = conn.execute(
             "SELECT * FROM sales_bills WHERE id=?", (sales_bill_id,)
         ).fetchone()
 
-        # Sum of line totals
         total_amount = conn.execute(
             "SELECT COALESCE(SUM(line_total), 0) FROM sales_items WHERE sales_bill_id=?",
             (sales_bill_id,)
@@ -456,9 +756,8 @@ class Database:
         pm = payment_mode if payment_mode is not None else bill["payment_mode"]
         recv = amount_received if amount_received is not None else bill["amount_received"]
 
-        final_amount = max(0.0, round(total_amount - disc, 2))
+        final_amount = max(0.0, round(float(total_amount) - disc, 2))
 
-        # Payment calculations
         if pm == 'CASH':
             paid_amount = min(recv, final_amount)
             change_amount = max(0.0, round(recv - final_amount, 2))
@@ -501,14 +800,16 @@ class Database:
             self._recalculate_sales_bill(conn, sales_bill_id, discount=discount,
                                          payment_mode=payment_mode, amount_received=amount_received)
 
-    def get_sales_bill(self, sales_bill_id):
+    def get_sales_bill(self, sales_bill_id, shop_id=1):
         with self.connection() as conn:
             bill = conn.execute("""
-                SELECT sb.*, c.name AS customer_name, c.mobile AS customer_mobile
+                SELECT sb.*, c.name AS customer_name, c.mobile AS customer_mobile,
+                       s.shop_name, s.owner_name AS shop_owner, s.address AS shop_address, s.mobile AS shop_mobile
                 FROM sales_bills sb
                 LEFT JOIN customers c ON c.id=sb.customer_id
-                WHERE sb.id=?
-            """, (sales_bill_id,)).fetchone()
+                LEFT JOIN shops s ON s.id=sb.shop_id
+                WHERE sb.id=? AND sb.shop_id=?
+            """, (sales_bill_id, shop_id)).fetchone()
             if not bill:
                 return None
 
@@ -520,23 +821,21 @@ class Database:
             res["items"] = [dict(it) for it in items]
             return res
 
-    def get_sales_bills(self, query=None, date=None, status=None, limit=100):
-        """
-        Sales bills ki list lata hai search, date aur status filters ke sath.
-        """
+    def get_sales_bills(self, query=None, date=None, status=None, limit=100, shop_id=1):
         with self.connection() as conn:
             sql = """
                 SELECT sb.*, 
                        c.name AS customer_name, 
                        c.mobile AS customer_mobile,
+                       c.current_due AS customer_current_due,
                        COUNT(si.id) AS item_count,
                        COALESCE((SELECT COUNT(*) FROM sales_returns sr WHERE sr.sales_bill_id = sb.id), 0) AS returns_count
                 FROM sales_bills sb
                 LEFT JOIN customers c ON c.id = sb.customer_id
                 LEFT JOIN sales_items si ON si.sales_bill_id = sb.id
-                WHERE 1=1
+                WHERE sb.shop_id = ?
             """
-            params = []
+            params = [shop_id]
             if date:
                 sql += " AND DATE(sb.bill_date) = DATE(?)"
                 params.append(date)
@@ -545,26 +844,25 @@ class Database:
                 params.append(status)
             if query and query.strip():
                 q_like = f"%{query.strip()}%"
-                sql += " AND (sb.bill_number LIKE ? OR c.name LIKE ? OR c.mobile LIKE ?)"
+                sql += " AND (sb.bill_number LIKE ? OR LOWER(c.name) LIKE LOWER(?) OR c.mobile LIKE ?)"
                 params.extend([q_like, q_like, q_like])
             
-            sql += " GROUP BY sb.id ORDER BY sb.id DESC LIMIT ?"
+            sql += " GROUP BY sb.id, c.name, c.mobile, c.current_due ORDER BY sb.id DESC LIMIT ?"
             params.append(limit)
             
             rows = conn.execute(sql, params).fetchall()
             return [dict(r) for r in rows]
 
-    def get_sales_bill_details(self, sales_bill_id):
-        """
-        Bill ki poori detail items aur return status (kitna wapas ho chuka hai) ke sath lata hai.
-        """
+    def get_sales_bill_details(self, sales_bill_id, shop_id=1):
         with self.connection() as conn:
             bill = conn.execute("""
-                SELECT sb.*, c.name AS customer_name, c.mobile AS customer_mobile, c.current_due AS customer_current_due
+                SELECT sb.*, c.name AS customer_name, c.mobile AS customer_mobile, c.current_due AS customer_current_due,
+                       s.shop_name, s.owner_name AS shop_owner, s.address AS shop_address, s.mobile AS shop_mobile
                 FROM sales_bills sb
                 LEFT JOIN customers c ON c.id=sb.customer_id
-                WHERE sb.id=?
-            """, (sales_bill_id,)).fetchone()
+                LEFT JOIN shops s ON s.id=sb.shop_id
+                WHERE sb.id=? AND sb.shop_id=?
+            """, (sales_bill_id, shop_id)).fetchone()
             if not bill:
                 return None
 
@@ -585,19 +883,10 @@ class Database:
                 res["items"].append(d)
             return res
 
-    def confirm_sale(self, sales_bill_id):
-        """
-        Atomic operation:
-        1. Checks bill is DRAFT.
-        2. Validates stock for ALL items (insufficient stock stops everything).
-        3. Validates Udhaar rule: Walk-in customer CANNOT have due_amount > 0.
-        4. Decrements current_stock for all sold items (Stock OUT).
-        5. Updates customer current_due if due_amount > 0.
-        6. Marks bill CONFIRMED.
-        """
+    def confirm_sale(self, sales_bill_id, shop_id=1):
         with self.connection() as conn:
             bill = conn.execute(
-                "SELECT * FROM sales_bills WHERE id=?", (sales_bill_id,)
+                "SELECT * FROM sales_bills WHERE id=? AND shop_id=?", (sales_bill_id, shop_id)
             ).fetchone()
             if not bill:
                 raise ValueError("Sales bill not found.")
@@ -610,14 +899,12 @@ class Database:
             if not items:
                 raise ValueError("Cannot confirm an empty sales bill.")
 
-            # Validation 1: Udhaar without registered customer is forbidden
             if bill["due_amount"] > 0 and bill["customer_id"] is None:
                 raise ValueError("Walk-in customers cannot have pending udhaar. Register customer first.")
 
-            # Validation 2: Check stock availability for all items before touching anything
             for item in items:
                 prod = conn.execute(
-                    "SELECT current_stock, name FROM products WHERE id=?", (item["product_id"],)
+                    "SELECT current_stock, name FROM products WHERE id=? AND shop_id=?", (item["product_id"], shop_id)
                 ).fetchone()
                 if not prod:
                     raise ValueError(f"Product ID {item['product_id']} not found.")
@@ -627,96 +914,96 @@ class Database:
                         f"Available: {prod['current_stock']}, Requested: {item['quantity']}"
                     )
 
-            # Execution 1: Decrement Stock (Stock OUT)
             for item in items:
                 conn.execute("""
                     UPDATE products
                     SET current_stock = current_stock - ?,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE id=?
-                """, (item["quantity"], item["product_id"]))
+                    WHERE id=? AND shop_id=?
+                """, (item["quantity"], item["product_id"], shop_id))
 
-            # Execution 2: Update Customer Udhaar Ledger
             if bill["customer_id"] is not None and bill["due_amount"] > 0:
                 conn.execute("""
                     UPDATE customers
                     SET current_due = current_due + ?
-                    WHERE id=?
-                """, (bill["due_amount"], bill["customer_id"]))
+                    WHERE id=? AND shop_id=?
+                """, (bill["due_amount"], bill["customer_id"], shop_id))
 
-            # Execution 3: Confirm Bill
             conn.execute("""
                 UPDATE sales_bills
                 SET status='CONFIRMED', confirmed_at=CURRENT_TIMESTAMP
-                WHERE id=?
-            """, (sales_bill_id,))
+                WHERE id=? AND shop_id=?
+            """, (sales_bill_id, shop_id))
 
-    def cancel_sales_bill(self, sales_bill_id):
+    def cancel_sales_bill(self, sales_bill_id, shop_id=1):
         with self.connection() as conn:
             cur = conn.execute("""
                 UPDATE sales_bills SET status='CANCELLED'
-                WHERE id=? AND status='DRAFT'
-            """, (sales_bill_id,))
+                WHERE id=? AND status='DRAFT' AND shop_id=?
+            """, (sales_bill_id, shop_id))
             if cur.rowcount == 0:
                 raise ValueError("Bill not found or is not in DRAFT status.")
 
     # -------------------- INVENTORY & ALERTS --------------------
 
-    def get_all_products(self):
+    def get_all_products(self, shop_id=1):
         with self.connection() as conn:
             rows = conn.execute(
-                "SELECT * FROM products ORDER BY name"
+                "SELECT * FROM products WHERE shop_id=? AND is_active IS NOT FALSE ORDER BY name", (shop_id,)
             ).fetchall()
             return [dict(row) for row in rows]
 
-    def get_low_stock_products(self):
+    def get_low_stock_products(self, shop_id=1):
         with self.connection() as conn:
             rows = conn.execute("""
                 SELECT * FROM products
                 WHERE current_stock > 0
                   AND current_stock <= low_stock_limit
+                  AND shop_id=?
+                  AND is_active IS NOT FALSE
                 ORDER BY current_stock
-            """).fetchall()
+            """, (shop_id,)).fetchall()
             return [dict(row) for row in rows]
 
-    def get_out_of_stock_products(self):
+    def get_out_of_stock_products(self, shop_id=1):
         with self.connection() as conn:
             rows = conn.execute("""
                 SELECT * FROM products
                 WHERE current_stock <= 0
+                  AND shop_id=?
+                  AND is_active IS NOT FALSE
                 ORDER BY name
-            """).fetchall()
+            """, (shop_id,)).fetchall()
             return [dict(row) for row in rows]
 
-    def seed_sample_products(self):
-        """Testing ke liye basic sample products."""
+    def seed_sample_products(self, shop_id=1):
         with self.connection() as conn:
-            count = conn.execute("SELECT COUNT(*) as cnt FROM products").fetchone()["cnt"]
+            count_row = conn.execute("SELECT COUNT(*) as cnt FROM products WHERE shop_id=?", (shop_id,)).fetchone()
+            count = count_row["cnt"] if count_row else 0
             if count == 0:
                 sample_items = [
-                    ("Tata Salt 1kg", "टाटा नमक", "packet", 10.0, 22.0, 28.0, 5.0, "890123456701"),
-                    ("Aashirvaad Atta 5kg", "आशीर्वाद आटा 5 किलो", "packet", 4.0, 230.0, 270.0, 3.0, "890123456702"),
-                    ("Fortune Mustard Oil 1L", "फॉर्च्यून सरसों तेल", "liter", 8.0, 125.0, 145.0, 5.0, "890123456703"),
-                    ("Sugar / Chini (Loose)", "चीनी खुला", "kg", 25.0, 40.0, 45.0, 10.0, None),
-                    ("Maggi 2-Minute Noodles", "मैगी नूडल्स", "packet", 24.0, 11.5, 14.0, 6.0, "890123456704")
+                    (shop_id, "Tata Salt 1kg", "टाटा नमक", "packet", 10.0, 22.0, 28.0, 5.0, f"890123456701_{shop_id}"),
+                    (shop_id, "Aashirvaad Atta 5kg", "आशीर्वाद आटा 5 किलो", "packet", 4.0, 230.0, 270.0, 3.0, f"890123456702_{shop_id}"),
+                    (shop_id, "Fortune Mustard Oil 1L", "फॉर्च्यून सरसों तेल", "liter", 8.0, 125.0, 145.0, 5.0, f"890123456703_{shop_id}"),
+                    (shop_id, "Sugar / Chini (Loose)", "चीनी खुला", "kg", 25.0, 40.0, 45.0, 10.0, None),
+                    (shop_id, "Maggi 2-Minute Noodles", "मैगी नूडल्स", "packet", 24.0, 11.5, 14.0, 6.0, f"890123456704_{shop_id}")
                 ]
                 conn.executemany("""
                     INSERT INTO products
-                    (name, hindi_name, unit, current_stock, cost_price,
+                    (shop_id, name, hindi_name, unit, current_stock, cost_price,
                      selling_price, low_stock_limit, barcode)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, sample_items)
-                print("🌱 5 Sample Products successfully seeded!")
+                print("🌱 Sample Products successfully seeded for Shop", shop_id)
 
 
-# Global ready-to-use database instance
+# Global database instance
 db = Database()
 
 
 if __name__ == "__main__":
     db.seed_sample_products()
-    print(f"\n✅ Schema loaded from: {SCHEMA_PATH}")
-    print(f"✅ Database ready at: {DB_PATH}")
-    print("\n📦 Dukaan me maujood Samaan (Current Stock):")
-    for p in db.get_all_products():
+    print(f"\n✅ Active Database Engine: {db.db_type.upper()}")
+    print("\n📦 Dukaan me maujood Samaan (Current Stock for Shop 1):")
+    for p in db.get_all_products(shop_id=1):
         print(f"  • {p['name']} | Stock: {p['current_stock']} {p['unit']} | CP: ₹{p['cost_price']} | SP: ₹{p['selling_price']}")
